@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom Industrial UI Utilities */
+.btn-primary {
+    @apply inline-flex items-center justify-center px-4 py-2.5 text-sm font-semibold text-white bg-indigo-600 rounded-lg transition hover:bg-indigo-700 active:scale-95 cursor-pointer shadow-sm disabled:opacity-50;
+}
+
+.btn-secondary {
+    @apply inline-flex items-center justify-center px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg transition hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer shadow-sm;
+}
+
+.input-field {
+    @apply w-full px-3 py-2 text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg outline-none transition focus:border-indigo-600 dark:focus:border-indigo-500 focus:ring-1 focus:ring-indigo-600 shadow-sm;
+}
