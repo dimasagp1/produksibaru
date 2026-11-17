@@ -157,7 +157,17 @@ class ProductionReportWorkflowTest extends TestCase
         $responseWithNote = $this->get("/reports/{$report->id}/bstb");
         $responseWithNote->assertInertia(fn (Assert $page) => $page
             ->where('bstb.note_status', 'Catatan Khusus Batch Selesai')
+            ->where('bstb.no_bstb', fn ($val) => str_contains($val, '/BSTB/PD/'))
         );
+
+        // Uji pembaruan No. BSTB manual dan catatan melalui endpoint bstb-meta (Opsi 3)
+        $metaResponse = $this->post("/reports/{$report->id}/bstb-meta", [
+            'no_bstb' => '02535/BSTB/PD/XI/26',
+            'notes' => 'Catatan Khusus Baru',
+        ]);
+        $metaResponse->assertRedirect();
+        $this->assertEquals('02535/BSTB/PD/XI/26', $report->fresh()->no_bstb);
+        $this->assertEquals('Catatan Khusus Baru', $report->fresh()->notes);
     }
 
     public function test_bstb_shift_consolidation_aggregates_multiple_batches(): void

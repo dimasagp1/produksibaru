@@ -1,12 +1,33 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3';
 import { Printer, ArrowLeft, Plus, Trash2, RotateCcw, FileText } from 'lucide-vue-next';
 
 const props = defineProps({
     report: Object,
     bstb: Object,
 });
+
+const isSaving = ref(false);
+
+function saveBstbMeta() {
+    if (!props.report?.id) return;
+    isSaving.value = true;
+    router.post(
+        `/reports/${props.report.id}/bstb-meta`,
+        {
+            no_bstb: noBstbText.value,
+            notes: noteText.value,
+        },
+        {
+            preserveScroll: true,
+            preserveState: true,
+            onFinish: () => {
+                isSaving.value = false;
+            },
+        }
+    );
+}
 
 // Editable state for items in case operator needs to split lots (e.g. DB-1026296 and DB-1026296c)
 const items = ref(
@@ -86,6 +107,7 @@ onUnmounted(() => {
 });
 
 function triggerPrint() {
+    saveBstbMeta();
     savedTitle = document.title;
     document.title = '';
     window.print();
@@ -204,10 +226,22 @@ function triggerPrint() {
 
                 <!-- Kolom Kanan -->
                 <div class="space-y-1">
-                    <div class="flex items-start">
+                    <div class="flex items-center">
                         <span class="w-24 shrink-0 font-medium">No. BSTB</span>
                         <span class="mr-2 font-bold">:</span>
-                        <span class="font-mono font-bold">{{ noBstbText }}</span>
+                        <!-- Mode Web: Input Form Dinamis Interaktif & Auto-Save (Opsi 3) -->
+                        <div class="no-print flex items-center gap-1.5">
+                            <input
+                                type="text"
+                                v-model="noBstbText"
+                                @change="saveBstbMeta"
+                                class="px-2 py-0.5 text-xs font-mono font-bold text-slate-900 bg-amber-50 border border-amber-300 rounded shadow-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none w-56"
+                                title="No. BSTB Dinamis (Opsi 3): Otomatis terisi nomor register urut berikutnya. Anda dapat menyuntingnya jika perlu sebelum mencetak."
+                            />
+                            <span v-if="isSaving" class="text-3xs text-indigo-600 font-sans font-medium animate-pulse">Menyimpan...</span>
+                        </div>
+                        <!-- Mode Cetak: Teks Resmi Dokumen Mutu Pabrik -->
+                        <span class="hidden print:inline-block font-mono font-bold">{{ noBstbText }}</span>
                     </div>
                     <div class="flex items-start">
                         <span class="w-24 shrink-0 font-medium">Kategori</span>
@@ -318,6 +352,7 @@ function triggerPrint() {
                     <input
                         type="text"
                         v-model="noteText"
+                        @change="saveBstbMeta"
                         placeholder="Contoh: FG FULL / FG PARTIAL / Catatan tambahan..."
                         class="px-2.5 py-1 text-xs font-bold font-mono text-slate-900 bg-amber-50 border border-amber-300 rounded shadow-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none min-w-[240px]"
                         title="Ketik atau ubah catatan BSTB di sini sebelum mencetak"
@@ -325,7 +360,7 @@ function triggerPrint() {
                     <div class="flex items-center gap-1">
                         <button
                             type="button"
-                            @click="noteText = 'FG FULL'"
+                            @click="noteText = 'FG FULL'; saveBstbMeta()"
                             class="px-2 py-0.5 text-2xs font-bold rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition cursor-pointer"
                             title="Set preset FG FULL"
                         >
@@ -333,7 +368,7 @@ function triggerPrint() {
                         </button>
                         <button
                             type="button"
-                            @click="noteText = 'FG PARTIAL'"
+                            @click="noteText = 'FG PARTIAL'; saveBstbMeta()"
                             class="px-2 py-0.5 text-2xs font-bold rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition cursor-pointer"
                             title="Set preset FG PARTIAL"
                         >

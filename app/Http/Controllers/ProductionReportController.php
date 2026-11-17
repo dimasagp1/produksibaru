@@ -294,14 +294,14 @@ class ProductionReportController extends Controller
         ])->findOrFail($id);
 
         $reportDate = \Carbon\Carbon::parse($report->report_date);
-        $monthRoman = match ($reportDate->month) {
-            1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV', 5 => 'V', 6 => 'VI',
-            7 => 'VII', 8 => 'VIII', 9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII',
-            default => 'I'
-        };
-        $yearTwoDigits = $reportDate->format('y');
-        $counter = str_pad($report->id, 5, '0', STR_PAD_LEFT);
-        $noBstb = "{$counter}/BSTB/PD/{$monthRoman}/{$yearTwoDigits}";
+
+        // Opsi 3: Ambil No. BSTB tersimpan atau buat nomor dinamis auto-counter berikutnya
+        if (!empty($report->no_bstb)) {
+            $noBstb = $report->no_bstb;
+        } else {
+            $noBstb = ProductionReport::generateNextBstbNumber($reportDate);
+            $report->update(['no_bstb' => $noBstb]);
+        }
 
         $monthsId = [
             1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
@@ -416,14 +416,14 @@ class ProductionReportController extends Controller
         $firstReport = $items->first()->report;
         $reportDate = \Carbon\Carbon::parse($firstReport->report_date ?? now());
 
-        $monthRoman = match ($reportDate->month) {
-            1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV', 5 => 'V', 6 => 'VI',
-            7 => 'VII', 8 => 'VIII', 9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII',
-            default => 'I'
-        };
-        $yearTwoDigits = $reportDate->format('y');
-        $counter = str_pad($firstReport->id ?? 1, 5, '0', STR_PAD_LEFT);
-        $noBstb = "{$counter}/BSTB/PD/{$monthRoman}/{$yearTwoDigits}";
+        // Opsi 3: Ambil No. BSTB tersimpan pada laporan shift ini atau buat dinamis auto-counter
+        $noBstb = $firstReport->no_bstb ?? null;
+        if (empty($noBstb)) {
+            $noBstb = ProductionReport::generateNextBstbNumber($reportDate);
+            if ($firstReport) {
+                $firstReport->update(['no_bstb' => $noBstb]);
+            }
+        }
 
         $monthsId = [
             1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
@@ -501,6 +501,25 @@ class ProductionReportController extends Controller
                 'total_batches' => $batchNumbers->count(),
             ],
         ]);
+    }
+
+    /**
+     * Simpan pembaruan metadata BSTB (No. BSTB & Catatan) dari halaman preview cetak (Opsi 3)
+     */
+    public function updateBstbMeta(Request $request, int $id)
+    {
+        $validated = $request->validate([
+            'no_bstb' => ['nullable', 'string', 'max:50'],
+            'notes' => ['nullable', 'string'],
+        ]);
+
+        $report = ProductionReport::findOrFail($id);
+        $report->update([
+            'no_bstb' => $validated['no_bstb'] ?? $report->no_bstb,
+            'notes' => $validated['notes'] ?? $report->notes,
+        ]);
+
+        return back()->with('success', 'Metadata BSTB berhasil diperbarui.');
     }
 }
 
