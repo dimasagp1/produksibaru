@@ -126,7 +126,7 @@ function triggerPrint() {
                     title="Tambah Baris Rincian Lot/Sisa"
                 >
                     <Plus class="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                    <span>+ Tambah Baris</span>
+                    <span>Tambah Baris</span>
                 </button>
 
                 <button
@@ -145,7 +145,7 @@ function triggerPrint() {
                     class="px-4 py-2 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2 shadow-sm transition cursor-pointer"
                 >
                     <Printer class="w-4 h-4" />
-                    <span>🖨️ Cetak Dokumen (Print)</span>
+                    <span>Cetak Dokumen (Print)</span>
                 </button>
             </div>
         </div>
