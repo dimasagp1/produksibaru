@@ -10,7 +10,9 @@ Route::redirect('/', '/dashboard');
 
 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-// Production Reports (Index, Create, Store, Show)
+// Production Reports (Index, Create, Store, Show, BSTB Print Single & Konsolidasi Shift)
+Route::get('/reports/bstb-shift', [ProductionReportController::class, 'bstbShift'])->name('reports.bstb-shift');
+Route::get('/reports/{id}/bstb', [ProductionReportController::class, 'bstb'])->name('reports.bstb');
 Route::resource('reports', ProductionReportController::class);
 
 // Batches Management (CRUD, Show Pipeline, Status Toggle)

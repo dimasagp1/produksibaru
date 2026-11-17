@@ -1,10 +1,10 @@
 <script setup>
-import { ref, reactive } from 'vue';
+import { ref, reactive, computed } from 'vue';
 import { router, Link } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import CardMetric from '@/Components/Common/CardMetric.vue';
 import BadgeStatus from '@/Components/Common/BadgeStatus.vue';
-import { ClipboardList, Printer, Plus } from 'lucide-vue-next';
+import { ClipboardList, Printer, Plus, FileText } from 'lucide-vue-next';
 
 const props = defineProps({
     items: Object,
@@ -13,6 +13,36 @@ const props = defineProps({
     plants: Array,
     products: Array,
 });
+
+// State Multi-Select Checkbox untuk Konsolidasi BSTB Shift (Cara 2)
+const selectedItemIds = ref([]);
+
+const isAllSelected = computed(() => {
+    if (!props.items?.data || props.items.data.length === 0) return false;
+    return props.items.data.every(it => selectedItemIds.value.includes(it.id));
+});
+
+function toggleSelectAll() {
+    if (isAllSelected.value) {
+        selectedItemIds.value = [];
+    } else {
+        selectedItemIds.value = props.items.data.map(it => it.id);
+    }
+}
+
+function printConsolidatedBstb() {
+    if (selectedItemIds.value.length === 0) return;
+    const url = `/reports/bstb-shift?item_ids=${selectedItemIds.value.join(',')}`;
+    router.visit(url);
+}
+
+function printCurrentShiftBstb() {
+    const params = new URLSearchParams();
+    if (formFilter.shift) params.append('shift', formFilter.shift);
+    if (formFilter.start_date) params.append('start_date', formFilter.start_date);
+    if (formFilter.plant_id) params.append('plant_id', formFilter.plant_id);
+    router.visit(`/reports/bstb-shift?${params.toString()}`);
+}
 
 const formFilter = reactive({
     process_type: props.filters?.process_type || '',
@@ -90,7 +120,16 @@ function printTable() {
                     </p>
                 </div>
 
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <button
+                        v-if="formFilter.shift || formFilter.start_date"
+                        @click="printCurrentShiftBstb"
+                        class="btn-secondary text-xs flex items-center gap-1.5 border-indigo-200 text-indigo-700 dark:text-indigo-300 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+                        title="Cetak BSTB gabungan untuk shift yang sedang difilter"
+                    >
+                        <FileText class="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                        <span>Cetak BSTB Shift</span>
+                    </button>
                     <button @click="printTable" class="btn-secondary text-xs flex items-center gap-1.5">
                         <Printer class="w-4 h-4 text-slate-600 dark:text-slate-400" />
                         <span>Cetak Rekap</span>
@@ -244,12 +283,54 @@ function printTable() {
                 </div>
             </div>
 
+            <!-- BANNER AKSI KONSOLIDASI BSTB SHIFT (CARA 2) -->
+            <div v-if="selectedItemIds.length > 0" class="p-4 bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all animate-in fade-in">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-3 h-3 rounded-full bg-indigo-600 animate-pulse shrink-0"></span>
+                    <div>
+                        <span class="text-xs font-bold text-indigo-900 dark:text-indigo-100 block">
+                            {{ selectedItemIds.length }} Laporan / Batch Terpilih
+                        </span>
+                        <span class="text-2xs text-indigo-600 dark:text-indigo-400 font-mono">
+                            Siap dikonsolidasikan otomatis ke 1 Formulir Bukti Serah Terima Barang (BSTB)
+                        </span>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        @click="selectedItemIds = []"
+                        class="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition cursor-pointer"
+                    >
+                        Batal
+                    </button>
+                    <button
+                        type="button"
+                        @click="printConsolidatedBstb"
+                        class="btn-primary text-xs py-2 px-3.5 flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 shadow-sm cursor-pointer"
+                    >
+                        <Printer class="w-4 h-4" />
+                        <span>🖨️ Cetak BSTB Konsolidasi ({{ selectedItemIds.length }} Batch)</span>
+                    </button>
+                </div>
+            </div>
+
             <!-- TABEL DATA LAPORAN (HIGH DENSITY) -->
             <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold uppercase tracking-wider">
                             <tr>
+                                <th class="py-3 px-3 text-center w-8">
+                                    <input
+                                        type="checkbox"
+                                        :checked="isAllSelected"
+                                        @change="toggleSelectAll"
+                                        class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                        title="Pilih Semua di Halaman Ini"
+                                    />
+                                </th>
                                 <th class="py-3 px-3">Tanggal / Shift</th>
                                 <th class="py-3 px-3">Plant & Lini</th>
                                 <th class="py-3 px-3">Divisi</th>
@@ -267,8 +348,21 @@ function printTable() {
                             <tr
                                 v-for="item in items.data"
                                 :key="item.id"
-                                class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition"
+                                :class="[
+                                    'hover:bg-slate-50 dark:hover:bg-slate-800/50 transition',
+                                    selectedItemIds.includes(item.id) ? 'bg-indigo-50/50 dark:bg-indigo-950/30' : ''
+                                ]"
                             >
+                                <!-- Checkbox Pilihan -->
+                                <td class="py-3 px-3 text-center">
+                                    <input
+                                        type="checkbox"
+                                        :value="item.id"
+                                        v-model="selectedItemIds"
+                                        class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                    />
+                                </td>
+
                                 <!-- Tanggal & Shift -->
                                 <td class="py-3 px-3 font-mono font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap">
                                     {{ item.report?.report_date }}
@@ -349,18 +443,25 @@ function printTable() {
                                 </td>
 
                                 <!-- Aksi -->
-                                <td class="py-3 px-3 text-center whitespace-nowrap">
+                                <td class="py-3 px-3 text-center whitespace-nowrap space-x-1">
                                     <Link
                                         :href="`/reports/${item.report_id}`"
                                         class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-200 font-bold px-2 py-1 rounded hover:bg-indigo-50 dark:hover:bg-slate-800 transition"
                                     >
-                                        Detail →
+                                        Detail
+                                    </Link>
+                                    <Link
+                                        :href="`/reports/${item.report_id}/bstb`"
+                                        class="text-emerald-600 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-200 font-semibold px-2 py-1 rounded hover:bg-emerald-50 dark:hover:bg-slate-800 transition font-mono text-2xs"
+                                        title="Cetak Bukti Serah Terima Barang (BSTB)"
+                                    >
+                                        BSTB 🖨️
                                     </Link>
                                 </td>
                             </tr>
 
                             <tr v-if="items.data.length === 0">
-                                <td colspan="11" class="py-12 text-center text-slate-400 dark:text-slate-500">
+                                <td colspan="12" class="py-12 text-center text-slate-400 dark:text-slate-500">
                                     <span class="text-3xl block mb-2">🔍</span>
                                     Tidak ada data laporan yang cocok dengan filter yang dipilih.
                                 </td>

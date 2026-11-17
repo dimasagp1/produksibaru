@@ -281,5 +281,226 @@ class ProductionReportController extends Controller
             'report' => $report,
         ]);
     }
+
+    /**
+     * Tampilan Cetak Resmi: Bukti Serah Terima Barang (BSTB)
+     */
+    public function bstb(int $id): Response
+    {
+        $report = ProductionReport::with([
+            'plant',
+            'items.batch.product',
+            'items.machine',
+        ])->findOrFail($id);
+
+        $reportDate = \Carbon\Carbon::parse($report->report_date);
+        $monthRoman = match ($reportDate->month) {
+            1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV', 5 => 'V', 6 => 'VI',
+            7 => 'VII', 8 => 'VIII', 9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII',
+            default => 'I'
+        };
+        $yearTwoDigits = $reportDate->format('y');
+        $counter = str_pad($report->id, 5, '0', STR_PAD_LEFT);
+        $noBstb = "{$counter}/BSTB/PD/{$monthRoman}/{$yearTwoDigits}";
+
+        $monthsId = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
+        ];
+        $formattedDate = $reportDate->format('d') . ' ' . ($monthsId[$reportDate->month] ?? $reportDate->format('F')) . ' ' . $reportDate->format('Y');
+
+        $shiftName = match ($report->shift) {
+            'shift_1' => 'Shift 1',
+            'shift_2' => 'Shift 2',
+            'shift_3' => 'Shift 3',
+            'middle' => 'Shift Middle',
+            default => ucfirst(str_replace('_', ' ', $report->shift ?? 'Shift 1'))
+        };
+
+        $expDateObj = $reportDate->copy()->addYears(2);
+        $expDateFormatted = strtoupper($expDateObj->format('M y')); // e.g. "OCT 28"
+
+        $firstItem = $report->items->first();
+        $primaryBatchNumber = $firstItem?->batch?->batch_number ?? 'DB-1026296';
+        $productName = $firstItem?->batch?->product?->name ?? 'DIABALANCE';
+        $uom = strtoupper($firstItem?->batch?->product?->unit ?? 'PCS');
+
+        $isFull = $report->items->isNotEmpty() && $report->items->every(fn($i) => $i->batch_status === 'CLOSE');
+        $defaultNoteStatus = $isFull ? 'FG FULL' : 'FG PARTIAL';
+        // Ambil nilai dari input catatan form laporan produksi jika tersedia, atau gunakan default status batch
+        $noteStatus = !empty(trim($report->notes ?? '')) ? trim($report->notes) : $defaultNoteStatus;
+
+        // Susun item default dari data pengerjaan sekunder
+        $initialItems = $report->items->map(function ($it, $idx) use ($expDateFormatted, $uom) {
+            return [
+                'no' => $idx + 1,
+                'nama_barang' => 'Finish Good ' . ($it->batch?->product?->name ?? 'DIABALANCE'),
+                'no_batch' => $it->batch?->batch_number ?? '',
+                'sub_batch' => null,
+                'lot' => '',
+                'exp_date' => $expDateFormatted,
+                'jumlah' => (float) $it->actual_output,
+                'sub_jumlah' => null,
+                'uom' => strtoupper($it->batch?->product?->unit ?? $uom),
+                'release_code' => '',
+            ];
+        })->values()->all();
+
+        return Inertia::render('Reports/Bstb', [
+            'report' => $report,
+            'bstb' => [
+                'no_bstb' => $noBstb,
+                'doc_control_no' => 'No. CM-09/PP/003-01.00',
+                'shift_tanggal' => "{$shiftName}/ {$formattedDate}",
+                'dari_departemen' => 'Produksi PT Herbatech',
+                'ke_departemen' => 'Warehouse PT Herbatech',
+                'kategori' => 'FG',
+                'no_batch' => $primaryBatchNumber,
+                'exp_date' => $expDateFormatted,
+                'product_name' => $productName,
+                'uom' => $uom,
+                'note_status' => $noteStatus,
+                'submitted_by' => $report->pic_leader ?? 'Leader Produksi',
+                'verified_by' => 'Supervisor Produksi',
+                'received_by' => 'Warehouse PT Herbatech',
+                'items' => $initialItems,
+                'is_consolidated' => false,
+                'total_batches' => 1,
+            ],
+        ]);
+    }
+
+    /**
+     * Tampilan Cetak Resmi: Bukti Serah Terima Barang (BSTB) Konsolidasi Shift (Cara 2)
+     * Menggabungkan secara otomatis seluruh batch yang dikerjakan pada shift & tanggal yang sama.
+     */
+    public function bstbShift(Request $request): Response|RedirectResponse
+    {
+        $query = ProductionReportItem::with([
+            'report.plant',
+            'batch.product',
+            'machine',
+        ]);
+
+        // Skenario 1: Jika user memilih ID item secara spesifik via checkbox
+        if ($request->filled('item_ids')) {
+            $itemIds = is_array($request->item_ids) ? $request->item_ids : explode(',', $request->item_ids);
+            $query->whereIn('id', $itemIds);
+        } elseif ($request->filled('report_ids')) {
+            $reportIds = is_array($request->report_ids) ? $request->report_ids : explode(',', $request->report_ids);
+            $query->whereIn('report_id', $reportIds);
+        } else {
+            // Skenario 2: Mengambil berdasarkan filter Tanggal dan Shift aktif
+            if ($request->filled('date')) {
+                $query->whereHas('report', fn($q) => $q->whereDate('report_date', $request->date));
+            } elseif ($request->filled('start_date')) {
+                $query->whereHas('report', fn($q) => $q->whereDate('report_date', $request->start_date));
+            }
+
+            if ($request->filled('shift')) {
+                $query->whereHas('report', fn($q) => $q->where('shift', $request->shift));
+            }
+
+            if ($request->filled('plant_id')) {
+                $query->whereHas('report', fn($q) => $q->where('plant_id', $request->plant_id));
+            }
+        }
+
+        $items = $query->orderBy('batch_id')->get();
+
+        if ($items->isEmpty()) {
+            return redirect()->route('reports.index')->with('error', 'Tidak ada data pengerjaan batch yang cocok untuk digabungkan ke BSTB.');
+        }
+
+        $firstReport = $items->first()->report;
+        $reportDate = \Carbon\Carbon::parse($firstReport->report_date ?? now());
+
+        $monthRoman = match ($reportDate->month) {
+            1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV', 5 => 'V', 6 => 'VI',
+            7 => 'VII', 8 => 'VIII', 9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII',
+            default => 'I'
+        };
+        $yearTwoDigits = $reportDate->format('y');
+        $counter = str_pad($firstReport->id ?? 1, 5, '0', STR_PAD_LEFT);
+        $noBstb = "{$counter}/BSTB/PD/{$monthRoman}/{$yearTwoDigits}";
+
+        $monthsId = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
+        ];
+        $formattedDate = $reportDate->format('d') . ' ' . ($monthsId[$reportDate->month] ?? $reportDate->format('F')) . ' ' . $reportDate->format('Y');
+
+        $shiftName = match ($firstReport->shift ?? 'shift_1') {
+            'shift_1' => 'Shift 1',
+            'shift_2' => 'Shift 2',
+            'shift_3' => 'Shift 3',
+            'middle' => 'Shift Middle',
+            default => ucfirst(str_replace('_', ' ', $firstReport->shift ?? 'Shift 1'))
+        };
+
+        // Kumpulkan nomor batch yang ada
+        $batchNumbers = $items->pluck('batch.batch_number')->filter()->unique()->values();
+        $headerBatch = $batchNumbers->count() > 1
+            ? $batchNumbers->implode(' / ')
+            : ($batchNumbers->first() ?? 'DB-1026294');
+
+        $productNames = $items->pluck('batch.product.name')->filter()->unique()->values();
+        $headerProduct = $productNames->implode(' / ');
+
+        $uoms = $items->pluck('batch.product.unit')->filter()->unique()->values();
+        $defaultUom = strtoupper($uoms->first() ?? 'PCS');
+
+        $isAllClosed = $items->every(fn($i) => $i->batch_status === 'CLOSE');
+        $defaultNoteStatus = $isAllClosed ? 'FG FULL' : 'FG PARTIAL';
+        $consolidatedNotes = $items->pluck('report.notes')->filter(fn($n) => !empty(trim($n ?? '')))->unique()->implode(', ');
+        $noteStatus = !empty($consolidatedNotes) ? $consolidatedNotes : $defaultNoteStatus;
+
+        // Susun rincian item otomatis dari database (Cara 2)
+        $aggregatedItems = $items->map(function ($it, $idx) use ($reportDate, $defaultUom) {
+            $expDateObj = $reportDate->copy()->addYears(2);
+            $expDate = strtoupper($expDateObj->format('M y'));
+            $prodName = $it->batch?->product?->name ?? 'DIABALANCE';
+            $batchNo = $it->batch?->batch_number ?? '';
+            $uom = strtoupper($it->batch?->product?->unit ?? $defaultUom);
+
+            return [
+                'no' => $idx + 1,
+                'nama_barang' => 'Finish Good ' . $prodName,
+                'no_batch' => $batchNo,
+                'sub_batch' => null,
+                'lot' => '',
+                'exp_date' => $expDate,
+                'jumlah' => (float) $it->actual_output,
+                'sub_jumlah' => null,
+                'uom' => $uom,
+                'release_code' => '',
+            ];
+        })->values()->all();
+
+        return Inertia::render('Reports/Bstb', [
+            'report' => $firstReport,
+            'bstb' => [
+                'no_bstb' => $noBstb,
+                'doc_control_no' => 'No. CM-09/PP/003-01.00',
+                'shift_tanggal' => "{$shiftName}/ {$formattedDate}",
+                'dari_departemen' => 'Produksi PT Herbatech',
+                'ke_departemen' => 'Warehouse PT Herbatech',
+                'kategori' => 'FG',
+                'no_batch' => $headerBatch,
+                'exp_date' => strtoupper($reportDate->copy()->addYears(2)->format('M y')),
+                'product_name' => $headerProduct,
+                'uom' => $defaultUom,
+                'note_status' => $noteStatus,
+                'submitted_by' => $firstReport->pic_leader ?? 'Leader Produksi',
+                'verified_by' => 'Supervisor Produksi',
+                'received_by' => 'Warehouse PT Herbatech',
+                'items' => $aggregatedItems,
+                'is_consolidated' => true,
+                'total_batches' => $batchNumbers->count(),
+            ],
+        ]);
+    }
 }
 

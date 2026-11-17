@@ -2,7 +2,7 @@
 import { Link } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import BadgeStatus from '@/Components/Common/BadgeStatus.vue';
-import { Printer, ArrowLeft, Cog } from 'lucide-vue-next';
+import { Printer, ArrowLeft, Cog, FileText } from 'lucide-vue-next';
 
 const props = defineProps({
     report: Object,
@@ -17,7 +17,7 @@ function printReport() {
     <AppLayout>
         <div class="space-y-6">
             <!-- Header Aksi & Breadcrumbs -->
-            <div class="flex items-center justify-between no-print bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 no-print bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
                 <div>
                     <h1 class="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
                         Detail Laporan Produksi #{{ report.id }}
@@ -27,8 +27,12 @@ function printReport() {
                     </p>
                 </div>
 
-                <div class="flex items-center gap-2">
-                    <button @click="printReport" class="btn-primary text-xs flex items-center gap-1.5">
+                <div class="flex items-center flex-wrap gap-2">
+                    <Link :href="`/reports/${report.id}/bstb`" class="btn-primary text-xs flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700">
+                        <FileText class="w-4 h-4" />
+                        <span>🖨️ Cetak BSTB (Serah Terima FG)</span>
+                    </Link>
+                    <button @click="printReport" class="btn-secondary text-xs flex items-center gap-1.5">
                         <Printer class="w-4 h-4" />
                         <span>Cetak Lembar Produksi</span>
                     </button>
