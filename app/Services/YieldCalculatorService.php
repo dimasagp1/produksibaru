@@ -39,14 +39,20 @@ class YieldCalculatorService
         $batch->total_output_filling = $totals->filling_total ?? 0;
         $batch->total_output_sekunder = $totals->sekunder_total ?? 0;
 
-        // Final Yield ditentukan oleh hasil akhir (Sekunder, atau Filling jika tidak ada Sekunder)
-        $finalOutput = $batch->total_output_sekunder > 0
-            ? $batch->total_output_sekunder
-            : ($batch->total_output_filling > 0 ? $batch->total_output_filling : $batch->total_output_mixing);
+        // Final Yield hanya dihitung & difinalkan ketika status batch = CLOSE
+        if ($batch->status === 'CLOSE') {
+            $finalOutput = $batch->total_output_sekunder > 0
+                ? $batch->total_output_sekunder
+                : ($batch->total_output_filling > 0 ? $batch->total_output_filling : $batch->total_output_mixing);
 
-        if ($batch->batch_size > 0) {
-            $batch->final_yield = round($finalOutput / $batch->batch_size, 4);
-            $batch->final_balance = round($finalOutput - $batch->batch_size, 2);
+            if ($batch->batch_size > 0) {
+                $batch->final_yield = round($finalOutput / $batch->batch_size, 4);
+                $batch->final_balance = round($finalOutput - $batch->batch_size, 2);
+            }
+        } else {
+            // Ketika masih OPEN, yield belum final
+            $batch->final_yield = null;
+            $batch->final_balance = null;
         }
 
         $batch->save();

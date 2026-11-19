@@ -24,30 +24,30 @@ class ProductionMasterSeeder extends Seeder
             Plant::firstOrCreate(['code' => $p['code']], $p);
         }
 
-        // 2. Master Products
+        // 2. Master Products (Standar Satuan Barang Jadi: PCS)
         $products = [
-            ['code' => 'DB', 'name' => 'DIABALANCE', 'category' => 'pangan_serbuk', 'default_batch_size' => 7000, 'unit' => 'sachet'],
-            ['code' => 'VM', 'name' => 'VITAMEAL', 'category' => 'pangan_serbuk', 'default_batch_size' => 6000, 'unit' => 'sachet'],
-            ['code' => 'VA', 'name' => 'VITAMEAL ACTIVE', 'category' => 'pangan_serbuk', 'default_batch_size' => 5000, 'unit' => 'sachet'],
-            ['code' => 'VG', 'name' => 'VITAMEAL LESS SUGAR', 'category' => 'pangan_serbuk', 'default_batch_size' => 5000, 'unit' => 'sachet'],
-            ['code' => 'EY', 'name' => 'EYEBOOST', 'category' => 'cair_cod', 'default_batch_size' => 10440, 'unit' => 'botol'],
-            ['code' => 'EP', 'name' => 'EYEBOOST PRO', 'category' => 'pangan_serbuk', 'default_batch_size' => 20750, 'unit' => 'sachet'],
-            ['code' => 'EN', 'name' => 'EYEBOST NUTRISIGHT', 'category' => 'pangan_serbuk', 'default_batch_size' => 7000, 'unit' => 'sachet'],
-            ['code' => 'VS', 'name' => 'VITASMA', 'category' => 'cair_cod', 'default_batch_size' => 6500, 'unit' => 'botol'],
-            ['code' => 'VK', 'name' => 'VITASMA KIDS', 'category' => 'cair_cod', 'default_batch_size' => 6500, 'unit' => 'botol'],
-            ['code' => 'VY', 'name' => 'VITUMMY', 'category' => 'cair_cod', 'default_batch_size' => 6500, 'unit' => 'botol'],
-            ['code' => 'WO', 'name' => 'WAJI HERBAL OIL', 'category' => 'minyak_col', 'default_batch_size' => 6400, 'unit' => 'botol'],
-            ['code' => 'WP', 'name' => 'WAJI TRAVEL SIZE', 'category' => 'minyak_col', 'default_batch_size' => 3000, 'unit' => 'botol'],
-            ['code' => 'GS', 'name' => 'GOAT STAR', 'category' => 'pangan_serbuk', 'default_batch_size' => 1000, 'unit' => 'sachet'],
-            ['code' => 'DT', 'name' => 'DELIDATES', 'category' => 'cair_cod', 'default_batch_size' => 3000, 'unit' => 'botol'],
-            ['code' => 'KL', 'name' => 'KULMAG', 'category' => 'pangan_serbuk', 'default_batch_size' => 1100, 'unit' => 'sachet'],
-            ['code' => 'KS', 'name' => 'KULMAG SEREAL', 'category' => 'pangan_serbuk', 'default_batch_size' => 1000, 'unit' => 'sachet'],
-            ['code' => 'HB', 'name' => 'HERBANU', 'category' => 'cair_cod', 'default_batch_size' => 3750, 'unit' => 'botol'],
-            ['code' => 'FD', 'name' => 'FORMUKIDS', 'category' => 'cair_cod', 'default_batch_size' => 1000, 'unit' => 'botol'],
-            ['code' => 'OM', 'name' => 'MINA', 'category' => 'minyak_col', 'default_batch_size' => 4300, 'unit' => 'botol'],
-            ['code' => 'WN', 'name' => 'WEN OIL', 'category' => 'minyak_col', 'default_batch_size' => 500, 'unit' => 'botol'],
-            ['code' => 'WT', 'name' => 'WEN OIL FORTE', 'category' => 'minyak_col', 'default_batch_size' => 500, 'unit' => 'botol'],
-            ['code' => 'DC', 'name' => 'DIASSENTIAL COKLAT', 'category' => 'pangan_serbuk', 'default_batch_size' => 3000, 'unit' => 'sachet'],
+            ['code' => 'DB', 'name' => 'DIABALANCE', 'category' => 'pangan_serbuk', 'default_batch_size' => 7000, 'unit' => 'pcs'],
+            ['code' => 'VM', 'name' => 'VITAMEAL', 'category' => 'pangan_serbuk', 'default_batch_size' => 6000, 'unit' => 'pcs'],
+            ['code' => 'VA', 'name' => 'VITAMEAL ACTIVE', 'category' => 'pangan_serbuk', 'default_batch_size' => 5000, 'unit' => 'pcs'],
+            ['code' => 'VG', 'name' => 'VITAMEAL LESS SUGAR', 'category' => 'pangan_serbuk', 'default_batch_size' => 5000, 'unit' => 'pcs'],
+            ['code' => 'EY', 'name' => 'EYEBOOST', 'category' => 'cair_cod', 'default_batch_size' => 10440, 'unit' => 'pcs'],
+            ['code' => 'EP', 'name' => 'EYEBOOST PRO', 'category' => 'pangan_serbuk', 'default_batch_size' => 20750, 'unit' => 'pcs'],
+            ['code' => 'EN', 'name' => 'EYEBOST NUTRISIGHT', 'category' => 'pangan_serbuk', 'default_batch_size' => 7000, 'unit' => 'pcs'],
+            ['code' => 'VS', 'name' => 'VITASMA', 'category' => 'cair_cod', 'default_batch_size' => 6500, 'unit' => 'pcs'],
+            ['code' => 'VK', 'name' => 'VITASMA KIDS', 'category' => 'cair_cod', 'default_batch_size' => 6500, 'unit' => 'pcs'],
+            ['code' => 'VY', 'name' => 'VITUMMY', 'category' => 'cair_cod', 'default_batch_size' => 6500, 'unit' => 'pcs'],
+            ['code' => 'WO', 'name' => 'WAJI HERBAL OIL', 'category' => 'minyak_col', 'default_batch_size' => 6400, 'unit' => 'pcs'],
+            ['code' => 'WP', 'name' => 'WAJI TRAVEL SIZE', 'category' => 'minyak_col', 'default_batch_size' => 3000, 'unit' => 'pcs'],
+            ['code' => 'GS', 'name' => 'GOAT STAR', 'category' => 'pangan_serbuk', 'default_batch_size' => 1000, 'unit' => 'pcs'],
+            ['code' => 'DT', 'name' => 'DELIDATES', 'category' => 'cair_cod', 'default_batch_size' => 3000, 'unit' => 'pcs'],
+            ['code' => 'KL', 'name' => 'KULMAG', 'category' => 'pangan_serbuk', 'default_batch_size' => 1100, 'unit' => 'pcs'],
+            ['code' => 'KS', 'name' => 'KULMAG SEREAL', 'category' => 'pangan_serbuk', 'default_batch_size' => 1000, 'unit' => 'pcs'],
+            ['code' => 'HB', 'name' => 'HERBANU', 'category' => 'cair_cod', 'default_batch_size' => 3750, 'unit' => 'pcs'],
+            ['code' => 'FD', 'name' => 'FORMUKIDS', 'category' => 'cair_cod', 'default_batch_size' => 1000, 'unit' => 'pcs'],
+            ['code' => 'OM', 'name' => 'MINA', 'category' => 'minyak_col', 'default_batch_size' => 4300, 'unit' => 'pcs'],
+            ['code' => 'WN', 'name' => 'WEN OIL', 'category' => 'minyak_col', 'default_batch_size' => 500, 'unit' => 'pcs'],
+            ['code' => 'WT', 'name' => 'WEN OIL FORTE', 'category' => 'minyak_col', 'default_batch_size' => 500, 'unit' => 'pcs'],
+            ['code' => 'DC', 'name' => 'DIASSENTIAL COKLAT', 'category' => 'pangan_serbuk', 'default_batch_size' => 3000, 'unit' => 'pcs'],
         ];
         foreach ($products as $pr) {
             Product::firstOrCreate(['code' => $pr['code']], $pr);
