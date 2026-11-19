@@ -11,6 +11,33 @@ const props = defineProps({
 function printReport() {
     window.print();
 }
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const raw = String(dateStr).split('T')[0];
+    const parts = raw.split('-');
+    if (parts.length === 3) {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        const year = parts[0];
+        const monthIndex = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        return `${day} ${months[monthIndex]} ${year}`;
+    }
+    return raw;
+}
+
+function getShiftInfo(shiftKey) {
+    const map = {
+        shift_1: { name: 'Shift 1', hours: '07:00 - 15:30' },
+        shift_2: { name: 'Shift 2', hours: '15:30 - 23:30' },
+        shift_3: { name: 'Shift 3', hours: '23:30 - 07:00' },
+        middle: { name: 'Middle', hours: 'Fleksibel' },
+    };
+    return map[shiftKey] || {
+        name: shiftKey ? shiftKey.replace('_', ' ').toUpperCase() : 'Shift 1',
+        hours: '07:00 - 15:30',
+    };
+}
 </script>
 
 <template>
@@ -23,7 +50,7 @@ function printReport() {
                         Detail Laporan Produksi #{{ report.id }}
                     </h1>
                     <p class="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                        {{ report.report_date }} | {{ report.plant?.name }} | {{ report.shift }}
+                        {{ formatDate(report.report_date) }} | {{ report.plant?.name }} | {{ getShiftInfo(report.shift).name }} ({{ getShiftInfo(report.shift).hours }})
                     </p>
                 </div>
 
@@ -69,12 +96,13 @@ function printReport() {
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50 dark:bg-slate-800/60 p-4 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
                     <div>
                         <span class="block text-slate-500 dark:text-slate-400 uppercase font-bold text-2xs">Tanggal Produksi</span>
-                        <span class="font-mono font-bold text-slate-900 dark:text-slate-100 text-sm">{{ report.report_date }}</span>
+                        <span class="font-mono font-bold text-slate-900 dark:text-slate-100 text-sm">{{ formatDate(report.report_date) }}</span>
                     </div>
 
                     <div>
-                        <span class="block text-slate-500 dark:text-slate-400 uppercase font-bold text-2xs">Shift Kerja</span>
-                        <span class="font-bold text-slate-900 dark:text-slate-100 uppercase text-sm">{{ report.shift?.replace('_', ' ') }}</span>
+                        <span class="block text-slate-500 dark:text-slate-400 uppercase font-bold text-2xs">Shift Kerja & Aturan Jam</span>
+                        <span class="font-bold text-slate-900 dark:text-slate-100 text-sm block">{{ getShiftInfo(report.shift).name }}</span>
+                        <span class="text-2xs font-mono text-slate-500 dark:text-slate-400 font-semibold">{{ getShiftInfo(report.shift).hours }}</span>
                     </div>
 
                     <div>

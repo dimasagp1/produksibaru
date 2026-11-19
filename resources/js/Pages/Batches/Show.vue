@@ -17,6 +17,33 @@ const statusForm = useForm({
 function updateStatus() {
     statusForm.put(`/batches/${props.batch.id}`);
 }
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const raw = String(dateStr).split('T')[0];
+    const parts = raw.split('-');
+    if (parts.length === 3) {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        const year = parts[0];
+        const monthIndex = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        return `${day} ${months[monthIndex]} ${year}`;
+    }
+    return raw;
+}
+
+function getShiftInfo(shiftKey) {
+    const map = {
+        shift_1: { name: 'Shift 1', hours: '07:00 - 15:30' },
+        shift_2: { name: 'Shift 2', hours: '15:30 - 23:30' },
+        shift_3: { name: 'Shift 3', hours: '23:30 - 07:00' },
+        middle: { name: 'Middle', hours: 'Fleksibel' },
+    };
+    return map[shiftKey] || {
+        name: shiftKey ? shiftKey.replace('_', ' ').toUpperCase() : 'Shift 1',
+        hours: '07:00 - 15:30',
+    };
+}
 </script>
 
 <template>
@@ -179,9 +206,18 @@ function updateStatus() {
                         </thead>
                         <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
                             <tr v-for="it in batch.report_items" :key="it.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/50 font-medium">
-                                <td class="p-3 font-mono text-slate-900 dark:text-slate-100 whitespace-nowrap">
-                                    {{ it.report?.report_date }}
-                                    <span class="block text-2xs uppercase text-slate-500 dark:text-slate-400 font-bold">{{ it.report?.shift }}</span>
+                                <td class="p-3 whitespace-nowrap">
+                                    <div class="font-mono font-bold text-slate-900 dark:text-slate-100 text-xs">
+                                        {{ formatDate(it.report?.report_date) }}
+                                    </div>
+                                    <div class="flex items-center gap-1.5 mt-0.5">
+                                        <span class="text-2xs font-extrabold uppercase px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300">
+                                            {{ getShiftInfo(it.report?.shift).name }}
+                                        </span>
+                                        <span class="text-2xs text-slate-500 dark:text-slate-400 font-mono">
+                                            {{ getShiftInfo(it.report?.shift).hours }}
+                                        </span>
+                                    </div>
                                 </td>
 
                                 <td class="p-3 whitespace-nowrap">

@@ -5,6 +5,8 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import CascadingReportSelect from '@/Components/Form/CascadingReportSelect.vue';
 import DowntimeQuickTags from '@/Components/Form/DowntimeQuickTags.vue';
 import LiveKpiSummaryBar from '@/Components/Form/LiveKpiSummaryBar.vue';
+import IndoNumberInput from '@/Components/Form/IndoNumberInput.vue';
+import FeedbackModal from '@/Components/Common/FeedbackModal.vue';
 import { useOeeCalculator } from '@/Composables/useOeeCalculator.js';
 import { useYieldCalculator } from '@/Composables/useYieldCalculator.js';
 import { ClipboardPen, Activity, ArrowLeft, Save, AlertCircle } from 'lucide-vue-next';
@@ -152,14 +154,44 @@ const {
     cumulativeYield,
 } = useYieldCalculator(form, selectedBatch);
 
+const isValidationModalOpen = ref(false);
+const validationErrors = ref({});
+
 function submit() {
     form.put(`/reports/${props.report.id}`, {
         preserveScroll: false,
         onError: (errors) => {
-            const errList = Object.values(errors).join('\n• ');
-            alert('⚠️ Gagal memperbarui laporan! Mohon periksa isian wajib berikut:\n• ' + errList);
+            validationErrors.value = errors;
+            isValidationModalOpen.value = true;
         },
     });
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const raw = String(dateStr).split('T')[0];
+    const parts = raw.split('-');
+    if (parts.length === 3) {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        const year = parts[0];
+        const monthIndex = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        return `${day} ${months[monthIndex]} ${year}`;
+    }
+    return raw;
+}
+
+function getShiftInfo(shiftKey) {
+    const map = {
+        shift_1: { name: 'Shift 1', hours: '07:00 - 15:30' },
+        shift_2: { name: 'Shift 2', hours: '15:30 - 23:30' },
+        shift_3: { name: 'Shift 3', hours: '23:30 - 07:00' },
+        middle: { name: 'Middle', hours: 'Fleksibel' },
+    };
+    return map[shiftKey] || {
+        name: shiftKey ? shiftKey.replace('_', ' ').toUpperCase() : 'Shift 1',
+        hours: '07:00 - 15:30',
+    };
 }
 </script>
 
@@ -174,7 +206,7 @@ function submit() {
                         <span>Edit Laporan Produksi #{{ report.id }}</span>
                     </h1>
                     <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
-                        {{ report.report_date }} | {{ report.plant?.name }} | {{ report.shift }}
+                        {{ formatDate(report.report_date) }} | {{ report.plant?.name }} | {{ getShiftInfo(report.shift).name }} ({{ getShiftInfo(report.shift).hours }})
                     </p>
                 </div>
                 <div class="flex items-center gap-2">
@@ -286,11 +318,10 @@ function submit() {
 
                             <div>
                                 <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Jumlah Man Power (MP)</label>
-                                <input
-                                    type="number"
-                                    v-model.number="form.total_man_power"
-                                    :class="['input-field font-mono font-bold', form.errors.total_man_power ? 'border-rose-500 ring-1 ring-rose-500' : '']"
-                                    min="1"
+                                <IndoNumberInput
+                                    v-model="form.total_man_power"
+                                    :input-class="['input-field font-mono font-bold', form.errors.total_man_power ? 'border-rose-500 ring-1 ring-rose-500' : '']"
+                                    placeholder="1"
                                 />
                                 <span v-if="form.errors.total_man_power" class="text-2xs text-rose-600 font-bold block mt-1">
                                     {{ form.errors.total_man_power }}
@@ -417,11 +448,10 @@ function submit() {
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
                             <div>
                                 <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Durasi Kerja (Menit)</label>
-                                <input
-                                    type="number"
-                                    v-model.number="form.duration_minutes"
-                                    :class="['input-field font-mono font-bold text-lg', form.errors.duration_minutes ? 'border-rose-500 ring-1 ring-rose-500' : '']"
-                                    min="0"
+                                <IndoNumberInput
+                                    v-model="form.duration_minutes"
+                                    :input-class="['input-field font-mono font-bold text-lg', form.errors.duration_minutes ? 'border-rose-500 ring-1 ring-rose-500' : '']"
+                                    placeholder="390"
                                 />
                                 <span class="text-2xs text-slate-500 font-mono mt-0.5 block">
                                     ≈ {{ ((form.duration_minutes || 0) / 60).toFixed(2) }} Jam
@@ -433,20 +463,19 @@ function submit() {
 
                             <div>
                                 <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Target per Shift (Master)</label>
-                                <input
-                                    type="number"
-                                    v-model.number="form.qty_target_per_shift_mp"
-                                    class="input-field font-mono font-bold"
+                                <IndoNumberInput
+                                    v-model="form.qty_target_per_shift_mp"
+                                    input-class="input-field font-mono font-bold"
+                                    placeholder="6.000"
                                 />
                             </div>
 
                             <div>
                                 <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Actual Output Shift Ini</label>
-                                <input
-                                    type="number"
-                                    v-model.number="form.actual_output"
-                                    :class="['input-field font-mono font-bold text-lg text-indigo-600 dark:text-indigo-400', form.errors.actual_output ? 'border-rose-500 ring-1 ring-rose-500' : '']"
-                                    min="0"
+                                <IndoNumberInput
+                                    v-model="form.actual_output"
+                                    :input-class="['input-field font-mono font-bold text-lg text-indigo-600 dark:text-indigo-400', form.errors.actual_output ? 'border-rose-500 ring-1 ring-rose-500' : '']"
+                                    placeholder="0"
                                 />
                                 <span v-if="form.errors.actual_output" class="text-2xs text-rose-600 font-bold block mt-1">
                                     {{ form.errors.actual_output }}
@@ -455,11 +484,10 @@ function submit() {
 
                             <div>
                                 <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Qty Reject / Cacat</label>
-                                <input
-                                    type="number"
-                                    v-model.number="form.reject_qty"
-                                    :class="['input-field font-mono font-bold text-rose-600', form.errors.reject_qty ? 'border-rose-500 ring-1 ring-rose-500' : '']"
-                                    min="0"
+                                <IndoNumberInput
+                                    v-model="form.reject_qty"
+                                    :input-class="['input-field font-mono font-bold text-rose-600', form.errors.reject_qty ? 'border-rose-500 ring-1 ring-rose-500' : '']"
+                                    placeholder="0"
                                 />
                                 <span v-if="form.errors.reject_qty" class="text-2xs text-rose-600 font-bold block mt-1">
                                     {{ form.errors.reject_qty }}
@@ -625,6 +653,17 @@ function submit() {
                 :cumulative-yield="cumulativeYield"
                 :submitting="form.processing"
                 @submit="submit"
+            />
+
+            <!-- Modal Validasi Error Modern -->
+            <FeedbackModal
+                :is-open="isValidationModalOpen"
+                type="error"
+                title="Gagal Memperbarui Laporan"
+                message="Terdapat isian wajib yang belum lengkap. Mohon periksa bagian berikut:"
+                :errors="validationErrors"
+                confirm-text="Saya Mengerti, Periksa Formulir"
+                @close="isValidationModalOpen = false"
             />
         </div>
     </AppLayout>

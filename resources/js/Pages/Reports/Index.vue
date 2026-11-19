@@ -102,6 +102,40 @@ function handlePresetChange() {
 function printTable() {
     window.print();
 }
+
+/**
+ * Format string tanggal YYYY-MM-DD atau ISO ke format Indonesia yang rapi (D MMM YYYY)
+ */
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const raw = String(dateStr).split('T')[0];
+    const parts = raw.split('-');
+    if (parts.length === 3) {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        const year = parts[0];
+        const monthIndex = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        return `${day} ${months[monthIndex]} ${year}`;
+    }
+    return raw;
+}
+
+/**
+ * Aturan jam kerja shift pabrik
+ */
+function getShiftInfo(shiftKey) {
+    const map = {
+        shift_1: { name: 'Shift 1', hours: '07:00 - 15:30', badge: 'Pagi' },
+        shift_2: { name: 'Shift 2', hours: '15:30 - 23:30', badge: 'Sore' },
+        shift_3: { name: 'Shift 3', hours: '23:30 - 07:00', badge: 'Malam' },
+        middle: { name: 'Middle', hours: 'Fleksibel', badge: 'Middle' },
+    };
+    return map[shiftKey] || {
+        name: shiftKey ? shiftKey.replace('_', ' ').toUpperCase() : 'Shift 1',
+        hours: '07:00 - 15:30',
+        badge: 'Shift',
+    };
+}
 </script>
 
 <template>
@@ -219,13 +253,13 @@ function printTable() {
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
                     <!-- 1. Filter Shift -->
                     <div>
-                        <label class="block text-2xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-1">Shift</label>
-                        <select v-model="formFilter.shift" @change="applyFilter" class="input-field text-xs py-1.5">
+                        <label class="block text-2xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-1">Shift & Aturan Jam</label>
+                        <select v-model="formFilter.shift" @change="applyFilter" class="input-field text-xs py-1.5 font-medium">
                             <option value="">Semua Shift</option>
-                            <option value="shift_1">Shift 1 (Pagi)</option>
-                            <option value="shift_2">Shift 2 (Siang)</option>
-                            <option value="shift_3">Shift 3 (Malam)</option>
-                            <option value="middle">Middle</option>
+                            <option value="shift_1">Shift 1 (07:00 - 15:30)</option>
+                            <option value="shift_2">Shift 2 (15:30 - 23:30)</option>
+                            <option value="shift_3">Shift 3 (23:30 - 07:00)</option>
+                            <option value="middle">Middle (Fleksibel)</option>
                         </select>
                     </div>
 
@@ -379,11 +413,18 @@ function printTable() {
                                 </td>
 
                                 <!-- Tanggal & Shift -->
-                                <td class="py-3 px-3 font-mono font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap">
-                                    {{ item.report?.report_date }}
-                                    <span class="block text-2xs text-slate-500 dark:text-slate-400 uppercase font-bold">
-                                        {{ item.report?.shift?.replace('_', ' ') }}
-                                    </span>
+                                <td class="py-3 px-3 whitespace-nowrap">
+                                    <div class="font-mono font-bold text-slate-900 dark:text-slate-100 text-xs">
+                                        {{ formatDate(item.report?.report_date) }}
+                                    </div>
+                                    <div class="flex items-center gap-1.5 mt-0.5">
+                                        <span class="text-2xs font-extrabold uppercase px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300">
+                                            {{ getShiftInfo(item.report?.shift).name }}
+                                        </span>
+                                        <span class="text-2xs text-slate-500 dark:text-slate-400 font-mono font-medium">
+                                            {{ getShiftInfo(item.report?.shift).hours }}
+                                        </span>
+                                    </div>
                                 </td>
 
                                 <!-- Plant & Lini -->
