@@ -29,12 +29,12 @@ const filteredMachines = computed(() => {
     return props.machines.filter(m => m.stage === props.modelValue.process_type);
 });
 
-// Cascading Filter: Hanya nomor batch yang aktif (OPEN) milik produk dan proses yang dipilih
+// Cascading Filter: Nomor batch aktif (OPEN) atau batch yang sedang dipilih pada laporan ini
 const availableBatches = computed(() => {
     if (!props.modelValue.product_id) return [];
     return props.activeBatches.filter(b => 
         b.product_id === Number(props.modelValue.product_id) &&
-        b.status === 'OPEN'
+        (b.status === 'OPEN' || b.id === Number(props.modelValue.batch_id))
     );
 });
 
@@ -344,7 +344,7 @@ function onMachineChange(event) {
         <div>
             <div class="flex items-center justify-between mb-1.5">
                 <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                    3. Nomor Batch Terhubung (Status: OPEN)
+                    3. Nomor Batch Terhubung
                 </label>
                 <span v-if="availableBatches.length > 0" class="text-xs text-emerald-600 dark:text-emerald-400 font-semibold font-mono">
                     ● {{ availableBatches.length }} Batch Tersedia
@@ -362,7 +362,7 @@ function onMachineChange(event) {
             >
                 <option :value="null">-- Pilih Nomor Batch --</option>
                 <option v-for="b in availableBatches" :key="b.id" :value="b.id">
-                    {{ b.batch_number }}  [Batch Size: {{ Number(b.batch_size).toLocaleString('id-ID') }} | Stage: {{ b.current_stage }}]
+                    {{ b.batch_number }}  [{{ b.status }} | Batch Size: {{ Number(b.batch_size).toLocaleString('id-ID') }} | Stage: {{ b.current_stage }}]
                 </option>
             </select>
         </div>

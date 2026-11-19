@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { Link, usePage, router } from '@inertiajs/vue3';
 import {
     BarChart3,
@@ -17,9 +17,28 @@ import {
     LogOut,
     ShieldCheck,
     ChevronsUpDown,
+    CheckCircle2,
+    AlertCircle,
 } from 'lucide-vue-next';
 
 const page = usePage();
+const flashDismissed = ref(false);
+
+// Reset alert dismissal whenever a new flash message arrives & auto-dismiss after 6s
+let flashTimer = null;
+watch(
+    () => [page.props.flash?.success, page.props.flash?.error],
+    ([newSuccess, newError]) => {
+        if (newSuccess || newError) {
+            flashDismissed.value = false;
+            if (flashTimer) clearTimeout(flashTimer);
+            flashTimer = setTimeout(() => {
+                flashDismissed.value = true;
+            }, 6000);
+        }
+    },
+    { deep: true, immediate: true }
+);
 
 // Desktop Sidebar Toggle (Expanded w-64 vs Collapsed w-20)
 const isSidebarOpen = ref(true);
@@ -237,7 +256,7 @@ function closeMobileDrawer() {
                         :title="!isSidebarOpen ? 'Input Laporan Baru' : ''"
                     >
                         <ClipboardPen class="w-5 h-5 shrink-0" />
-                        <span v-show="isSidebarOpen" class="truncate">+ Input Laporan</span>
+                        <span v-show="isSidebarOpen" class="truncate">Input Laporan</span>
                     </Link>
 
                     <!-- Laporan Produksi Index -->
@@ -428,9 +447,114 @@ function closeMobileDrawer() {
 
             <!-- KONTEN UTAMA HALAMAN -->
             <main class="flex-1 w-full px-4 sm:px-6 lg:px-8 py-6">
+                <!-- Global Flash Alert: Success -->
+                <div
+                    v-if="$page.props.flash?.success && !flashDismissed"
+                    class="mb-5 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-100 flex items-center justify-between gap-3 shadow-xs transition-all animate-in fade-in"
+                >
+                    <div class="flex items-center gap-3">
+                        <CheckCircle2 class="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <div>
+                            <span class="text-xs font-bold block">Berhasil!</span>
+                            <span class="text-xs font-medium">{{ $page.props.flash.success }}</span>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        @click="flashDismissed = true"
+                        class="p-1 rounded-md text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 cursor-pointer"
+                        title="Tutup Notifikasi"
+                    >
+                        <CloseIcon class="w-4 h-4" />
+                    </button>
+                </div>
+
+                <!-- Global Flash Alert: Error -->
+                <div
+                    v-if="$page.props.flash?.error && !flashDismissed"
+                    class="mb-5 p-4 rounded-xl bg-rose-50 dark:bg-rose-950/70 border border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-100 flex items-center justify-between gap-3 shadow-xs transition-all animate-in fade-in"
+                >
+                    <div class="flex items-center gap-3">
+                        <AlertCircle class="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />
+                        <div>
+                            <span class="text-xs font-bold block">Terjadi Kendala!</span>
+                            <span class="text-xs font-medium">{{ $page.props.flash.error }}</span>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        @click="flashDismissed = true"
+                        class="p-1 rounded-md text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 cursor-pointer"
+                        title="Tutup Notifikasi"
+                    >
+                        <CloseIcon class="w-4 h-4" />
+                    </button>
+                </div>
+
                 <slot />
             </main>
         </div>
+
+        <!-- FLOATING TOAST NOTIFICATION (POJOK KANAN ATAS) -->
+        <Teleport to="body">
+            <!-- Toast Success -->
+            <Transition
+                enter-active-class="transform transition ease-out duration-300"
+                enter-from-class="translate-y-[-20px] opacity-0"
+                enter-to-class="translate-y-0 opacity-100"
+                leave-active-class="transition ease-in duration-200"
+                leave-from-class="opacity-100 scale-100"
+                leave-to-class="opacity-0 scale-95"
+            >
+                <div
+                    v-if="$page.props.flash?.success && !flashDismissed"
+                    class="fixed top-5 right-5 z-50 max-w-sm sm:max-w-md w-full bg-emerald-600 text-white p-4 rounded-2xl shadow-2xl flex items-start gap-3 border border-emerald-400/40 backdrop-blur-md"
+                >
+                    <CheckCircle2 class="w-6 h-6 text-white shrink-0 mt-0.5" />
+                    <div class="flex-1 min-w-0">
+                        <h4 class="text-xs font-black uppercase tracking-wider text-emerald-100">Berhasil Disimpan</h4>
+                        <p class="text-xs font-semibold text-white mt-0.5 leading-relaxed">{{ $page.props.flash.success }}</p>
+                    </div>
+                    <button
+                        type="button"
+                        @click="flashDismissed = true"
+                        class="p-1 rounded-lg text-emerald-100 hover:bg-white/20 transition cursor-pointer shrink-0"
+                        title="Tutup Notifikasi"
+                    >
+                        <CloseIcon class="w-5 h-5" />
+                    </button>
+                </div>
+            </Transition>
+
+            <!-- Toast Error -->
+            <Transition
+                enter-active-class="transform transition ease-out duration-300"
+                enter-from-class="translate-y-[-20px] opacity-0"
+                enter-to-class="translate-y-0 opacity-100"
+                leave-active-class="transition ease-in duration-200"
+                leave-from-class="opacity-100 scale-100"
+                leave-to-class="opacity-0 scale-95"
+            >
+                <div
+                    v-if="$page.props.flash?.error && !flashDismissed"
+                    class="fixed top-5 right-5 z-50 max-w-sm sm:max-w-md w-full bg-rose-600 text-white p-4 rounded-2xl shadow-2xl flex items-start gap-3 border border-rose-400/40 backdrop-blur-md"
+                >
+                    <AlertCircle class="w-6 h-6 text-white shrink-0 mt-0.5" />
+                    <div class="flex-1 min-w-0">
+                        <h4 class="text-xs font-black uppercase tracking-wider text-rose-100">Pemberitahuan</h4>
+                        <p class="text-xs font-semibold text-white mt-0.5 leading-relaxed">{{ $page.props.flash.error }}</p>
+                    </div>
+                    <button
+                        type="button"
+                        @click="flashDismissed = true"
+                        class="p-1 rounded-lg text-rose-100 hover:bg-white/20 transition cursor-pointer shrink-0"
+                        title="Tutup Notifikasi"
+                    >
+                        <CloseIcon class="w-5 h-5" />
+                    </button>
+                </div>
+            </Transition>
+        </Teleport>
 
         <!-- POPUP MODAL LOGOUT USER -->
         <Teleport to="body">

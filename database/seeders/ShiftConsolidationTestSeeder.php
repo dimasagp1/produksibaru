@@ -22,7 +22,7 @@ class ShiftConsolidationTestSeeder extends Seeder
         if (!$diabalance) {
             $diabalance = Product::firstOrCreate(
                 ['code' => 'DB'],
-                ['name' => 'DIABALANCE', 'category' => 'pangan_serbuk', 'default_batch_size' => 7000, 'unit' => 'sachet']
+                ['name' => 'DIABALANCE', 'category' => 'pangan_serbuk', 'default_batch_size' => 7000, 'unit' => 'pcs']
             );
         }
 
