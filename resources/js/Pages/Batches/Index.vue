@@ -183,10 +183,13 @@ function filterStatus(status) {
                                 </td>
 
                                 <td class="p-3 text-right font-mono font-bold tabular-nums whitespace-nowrap">
-                                    <span :class="[
+                                    <span v-if="b.status === 'CLOSE'" :class="[
                                         Number(b.final_yield || 0) >= 0.98 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
                                     ]">
                                         {{ b.final_yield ? `${(Number(b.final_yield) * 100).toFixed(2)}%` : '-' }}
+                                    </span>
+                                    <span v-else class="text-2xs font-normal text-slate-400 dark:text-slate-500 font-mono" title="Yield hanya dihitung ketika batch berstatus CLOSE">
+                                        — (OPEN)
                                     </span>
                                 </td>
 

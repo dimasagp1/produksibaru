@@ -62,7 +62,7 @@ function updateStatus() {
                             (batch.final_yield || 0) >= 0.98 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
                         ]"
                     >
-                        {{ batch.final_yield ? `${(Number(batch.final_yield) * 100).toFixed(2)}%` : 'Berjalan' }}
+                        {{ batch.status === 'CLOSE' && batch.final_yield ? `${(Number(batch.final_yield) * 100).toFixed(2)}%` : 'Menunggu CLOSE' }}
                     </span>
                     <span class="text-2xs text-slate-400 dark:text-slate-500">Target Standar ≥ 98.0%</span>
                 </div>

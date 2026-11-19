@@ -50,6 +50,7 @@ const formFilter = reactive({
     plant_id: props.filters?.plant_id || '',
     product_id: props.filters?.product_id || '',
     batch_status: props.filters?.batch_status || '',
+    time_status: props.filters?.time_status || '',
     period_preset: props.filters?.period_preset || 'this_month',
     start_date: props.filters?.start_date || '',
     end_date: props.filters?.end_date || '',
@@ -73,6 +74,7 @@ function resetFilter() {
     formFilter.plant_id = '';
     formFilter.product_id = '';
     formFilter.batch_status = '';
+    formFilter.time_status = '';
     formFilter.period_preset = 'this_month';
     formFilter.start_date = '';
     formFilter.end_date = '';
@@ -214,7 +216,7 @@ function printTable() {
                     </button>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
                     <!-- 1. Filter Shift -->
                     <div>
                         <label class="block text-2xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-1">Shift</label>
@@ -259,7 +261,20 @@ function printTable() {
                         </select>
                     </div>
 
-                    <!-- 5. Tanggal Awal -->
+                    <!-- 5. Status Shift 390m (Validasi & Tracking Unik) -->
+                    <div>
+                        <label class="block text-2xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-1">Waktu Shift (390m)</label>
+                        <select v-model="formFilter.time_status" @change="applyFilter" class="input-field text-xs py-1.5 font-medium">
+                            <option value="">Semua Waktu</option>
+                            <option value="unfilled">⚠️ Belum Input (0m)</option>
+                            <option value="not_exact">⚠️ Tidak Pas 390m</option>
+                            <option value="under">⚠️ Kurang (&lt; 390m)</option>
+                            <option value="over">⚠️ Lebih (&gt; 390m)</option>
+                            <option value="exact">✓ Pas 390 Menit</option>
+                        </select>
+                    </div>
+
+                    <!-- 6. Tanggal Awal -->
                     <div>
                         <label class="block text-2xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-1">Dari Tanggal</label>
                         <input
@@ -270,7 +285,7 @@ function printTable() {
                         />
                     </div>
 
-                    <!-- 6. Tanggal Akhir -->
+                    <!-- 7. Tanggal Akhir -->
                     <div>
                         <label class="block text-2xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-1">Sampai Tanggal</label>
                         <input
@@ -335,7 +350,7 @@ function printTable() {
                                 <th class="py-3 px-3">Plant & Lini</th>
                                 <th class="py-3 px-3">Divisi</th>
                                 <th class="py-3 px-3">Produk & Batch</th>
-                                <th class="py-3 px-3 text-right">Durasi</th>
+                                <th class="py-3 px-3 text-right">Durasi & Shift (390m)</th>
                                 <th class="py-3 px-3 text-right">Actual Output</th>
                                 <th class="py-3 px-3 text-right">Balance</th>
                                 <th class="py-3 px-3 text-right">OEE</th>
@@ -403,12 +418,68 @@ function printTable() {
                                     </span>
                                 </td>
 
-                                <!-- Durasi -->
-                                <td class="py-3 px-3 text-right font-mono font-semibold tabular-nums whitespace-nowrap text-slate-800 dark:text-slate-200">
-                                    {{ item.duration_minutes }}m
-                                    <span v-if="item.downtime_unplanned_minutes > 0" class="block text-2xs text-rose-500">
-                                        +{{ item.downtime_unplanned_minutes }}m DT
-                                    </span>
+                                <!-- Durasi & Status Shift (390m) -->
+                                <td class="py-3 px-3 text-right font-mono whitespace-nowrap">
+                                    <div class="font-bold text-xs tabular-nums text-slate-800 dark:text-slate-200">
+                                        {{ item.duration_minutes }}m
+                                        <span v-if="(item.downtime_planned_minutes + item.downtime_unplanned_minutes) > 0" class="text-2xs text-slate-500 font-normal">
+                                            + {{ item.downtime_planned_minutes + item.downtime_unplanned_minutes }}m DT
+                                        </span>
+                                    </div>
+
+                                    <!-- Indikator Unik 390 Menit -->
+                                    <div class="mt-1 flex flex-col items-end gap-0.5">
+                                        <!-- 1. Belum Input Waktu / DT -->
+                                        <span
+                                            v-if="item.shift_tracking?.is_unfilled"
+                                            class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-3xs font-extrabold uppercase bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-800 animate-pulse"
+                                            title="Leader belum mengisi durasi kerja dan downtime"
+                                        >
+                                            ⚠️ Belum Input
+                                        </span>
+
+                                        <!-- 2. Pas 390 Menit -->
+                                        <template v-else-if="item.shift_tracking?.status === 'exact'">
+                                            <span
+                                                class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-3xs font-bold uppercase bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
+                                                title="Total pengerjaan shift pas 390 menit (sudah include downtime)"
+                                            >
+                                                ✓ Pas 390m
+                                            </span>
+                                            <span class="text-3xs text-emerald-600 dark:text-emerald-400 font-medium">
+                                                Shift: {{ item.shift_tracking.group_total }}m
+                                            </span>
+                                        </template>
+
+                                        <!-- 3. Kurang dari 390 Menit -->
+                                        <template v-else-if="item.shift_tracking?.status === 'under'">
+                                            <span
+                                                class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-3xs font-bold uppercase bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
+                                                :title="`Total shift baru ${item.shift_tracking.group_total}m, kurang ${Math.abs(item.shift_tracking.diff)}m dari standar 390m`"
+                                            >
+                                                ⚠️ Kurang ({{ item.shift_tracking.diff }}m)
+                                            </span>
+                                            <span class="text-3xs text-amber-600 dark:text-amber-400 font-mono">
+                                                {{ item.shift_tracking.group_total }}/390m
+                                            </span>
+                                            <span v-if="item.shift_tracking.item_dt === 0" class="text-3xs text-rose-500 font-bold">
+                                                DT: 0m
+                                            </span>
+                                        </template>
+
+                                        <!-- 4. Lebih dari 390 Menit -->
+                                        <template v-else-if="item.shift_tracking?.status === 'over'">
+                                            <span
+                                                class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-3xs font-bold uppercase bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-300 dark:border-purple-800"
+                                                :title="`Total shift ${item.shift_tracking.group_total}m, lebih ${item.shift_tracking.diff}m (overtime/kelebihan)`"
+                                            >
+                                                ⚠️ Lebih (+{{ item.shift_tracking.diff }}m)
+                                            </span>
+                                            <span class="text-3xs text-purple-600 dark:text-purple-400 font-mono">
+                                                {{ item.shift_tracking.group_total }}/390m
+                                            </span>
+                                        </template>
+                                    </div>
                                 </td>
 
                                 <!-- Actual Output -->
@@ -432,9 +503,22 @@ function printTable() {
                                     </span>
                                 </td>
 
-                                <!-- Cumulative Yield -->
-                                <td class="py-3 px-3 text-right font-mono font-bold tabular-nums whitespace-nowrap text-slate-800 dark:text-slate-200">
-                                    {{ (Number(item.cumulative_yield || 0) * 100).toFixed(1) }}%
+                                <!-- Cumulative Yield (Poin 1: Hanya Dihitung & Difinalkan Ketika Batch CLOSE) -->
+                                <td class="py-3 px-3 text-right font-mono font-bold tabular-nums whitespace-nowrap">
+                                    <span
+                                        v-if="item.batch_status === 'CLOSE'"
+                                        :class="Number(item.cumulative_yield || item.batch?.final_yield || 0) >= 0.98 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'"
+                                    >
+                                        {{ (Number(item.cumulative_yield || item.batch?.final_yield || 0) * 100).toFixed(1) }}%
+                                    </span>
+                                    <span
+                                        v-else
+                                        class="inline-flex items-center gap-1 text-slate-400 dark:text-slate-500 font-mono text-2xs"
+                                        title="Yield hanya dihitung ketika status batch CLOSE"
+                                    >
+                                        <span>—</span>
+                                        <span class="text-3xs font-bold uppercase px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">OPEN</span>
+                                    </span>
                                 </td>
 
                                 <!-- Status Badge -->
@@ -442,8 +526,15 @@ function printTable() {
                                     <BadgeStatus :status="item.batch_status" />
                                 </td>
 
-                                <!-- Aksi -->
+                                <!-- Aksi (Detail, Edit Laporan, Cetak BSTB) -->
                                 <td class="py-3 px-3 text-center whitespace-nowrap space-x-1">
+                                    <Link
+                                        :href="`/reports/${item.report_id}/edit?item_id=${item.id}`"
+                                        class="text-amber-600 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 font-bold px-2 py-1 rounded hover:bg-amber-50 dark:hover:bg-slate-800 transition"
+                                        title="Edit Laporan Produksi & Downtime"
+                                    >
+                                        Edit ✏️
+                                    </Link>
                                     <Link
                                         :href="`/reports/${item.report_id}`"
                                         class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-200 font-bold px-2 py-1 rounded hover:bg-indigo-50 dark:hover:bg-slate-800 transition"

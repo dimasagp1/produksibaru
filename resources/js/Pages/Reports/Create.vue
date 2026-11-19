@@ -7,7 +7,7 @@ import DowntimeQuickTags from '@/Components/Form/DowntimeQuickTags.vue';
 import LiveKpiSummaryBar from '@/Components/Form/LiveKpiSummaryBar.vue';
 import { useOeeCalculator } from '@/Composables/useOeeCalculator.js';
 import { useYieldCalculator } from '@/Composables/useYieldCalculator.js';
-import { ClipboardPen, Activity, ArrowLeft } from 'lucide-vue-next';
+import { ClipboardPen, Activity, ArrowLeft, Save, AlertCircle } from 'lucide-vue-next';
 
 const props = defineProps({
     plants: Array,
@@ -106,6 +106,40 @@ const {
     oee,
 } = useOeeCalculator(form, selectedIdealSpeed);
 
+// Live Validasi 1 Shift = 390 Menit (Sudah Include Downtime)
+const shiftTracking = computed(() => {
+    const duration = Number(form.duration_minutes || 0);
+    const plannedDt = Number(form.downtime_planned_minutes || 0);
+    const unplannedDt = Number(form.downtime_unplanned_minutes || 0);
+    const totalDt = plannedDt + unplannedDt;
+    const totalShift = duration + totalDt;
+    const diff = totalShift - 390;
+
+    let status = 'exact';
+    if (duration <= 0 && totalDt <= 0) {
+        status = 'unfilled';
+    } else if (totalShift === 390) {
+        status = 'exact';
+    } else if (totalShift < 390) {
+        status = 'under';
+    } else {
+        status = 'over';
+    }
+
+    return {
+        duration,
+        plannedDt,
+        unplannedDt,
+        totalDt,
+        totalShift,
+        diff,
+        status,
+        durationPercent: Math.min(100, (duration / 390) * 100),
+        plannedDtPercent: Math.min(100, (plannedDt / 390) * 100),
+        unplannedDtPercent: Math.min(100, (unplannedDt / 390) * 100),
+    };
+});
+
 const {
     batchSize,
     previousOutput,
@@ -115,7 +149,13 @@ const {
 } = useYieldCalculator(form, selectedBatch);
 
 function submit() {
-    form.post('/reports');
+    form.post('/reports', {
+        preserveScroll: false,
+        onError: (errors) => {
+            const errList = Object.values(errors).join('\n• ');
+            alert('⚠️ Gagal menyimpan laporan! Mohon periksa isian wajib berikut:\n• ' + errList);
+        },
+    });
 }
 </script>
 
@@ -134,11 +174,36 @@ function submit() {
                     </p>
                 </div>
                 <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        @click="submit"
+                        :disabled="form.processing"
+                        class="btn-primary text-xs flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 cursor-pointer shadow-sm"
+                    >
+                        <Save class="w-4 h-4" />
+                        <span>{{ form.processing ? 'Menyimpan...' : 'Simpan Laporan' }}</span>
+                    </button>
                     <Link href="/reports" class="btn-secondary text-xs flex items-center gap-1.5">
                         <ArrowLeft class="w-4 h-4" />
                         <span>Kembali ke Indeks</span>
                     </Link>
                 </div>
+            </div>
+
+            <!-- ALERT VALIDASI ERROR JIKA ISIAN TIDAK LENGKAP -->
+            <div
+                v-if="Object.keys(form.errors).length > 0"
+                class="p-4 bg-rose-50 dark:bg-rose-950/80 border border-rose-300 dark:border-rose-800 rounded-xl text-rose-900 dark:text-rose-100 space-y-2 shadow-xs transition-all animate-in fade-in"
+            >
+                <div class="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-rose-700 dark:text-rose-300">
+                    <AlertCircle class="w-4 h-4 shrink-0 text-rose-600" />
+                    <span>Perhatian: Gagal Menyimpan Laporan (Terdapat {{ Object.keys(form.errors).length }} Isian Belum Lengkap/Sesuai)</span>
+                </div>
+                <ul class="list-disc list-inside text-xs space-y-1 font-medium pl-1">
+                    <li v-for="(errMsg, errField) in form.errors" :key="errField">
+                        <span class="font-bold uppercase text-2xs font-mono">[{{ errField }}]</span>: {{ errMsg }}
+                    </li>
+                </ul>
             </div>
 
             <!-- Layout Form 2 Kolom (Input Kiri + Live Inspector Kanan) -->
@@ -154,26 +219,45 @@ function submit() {
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div>
                                 <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Tanggal</label>
-                                <input type="date" v-model="form.report_date" class="input-field font-mono font-medium" />
+                                <input
+                                    type="date"
+                                    v-model="form.report_date"
+                                    :class="['input-field font-mono font-medium', form.errors.report_date ? 'border-rose-500 ring-1 ring-rose-500' : '']"
+                                />
+                                <span v-if="form.errors.report_date" class="text-2xs text-rose-600 font-bold block mt-1">
+                                    {{ form.errors.report_date }}
+                                </span>
                             </div>
 
                             <div>
                                 <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Shift</label>
-                                <select v-model="form.shift" class="input-field font-medium">
+                                <select
+                                    v-model="form.shift"
+                                    :class="['input-field font-medium', form.errors.shift ? 'border-rose-500 ring-1 ring-rose-500' : '']"
+                                >
                                     <option value="shift_1">Shift 1 (07:00 - 15:30)</option>
                                     <option value="shift_2">Shift 2 (15:30 - 23:30)</option>
                                     <option value="shift_3">Shift 3 (23:30 - 07:00)</option>
                                     <option value="middle">Middle (Fleksibel)</option>
                                 </select>
+                                <span v-if="form.errors.shift" class="text-2xs text-rose-600 font-bold block mt-1">
+                                    {{ form.errors.shift }}
+                                </span>
                             </div>
 
                             <div>
                                 <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Lokasi Plant</label>
-                                <select v-model="form.plant_id" class="input-field font-medium">
+                                <select
+                                    v-model="form.plant_id"
+                                    :class="['input-field font-medium', form.errors.plant_id ? 'border-rose-500 ring-1 ring-rose-500' : '']"
+                                >
                                     <option v-for="pl in plants" :key="pl.id" :value="pl.id">
                                         {{ pl.name }}
                                     </option>
                                 </select>
+                                <span v-if="form.errors.plant_id" class="text-2xs text-rose-600 font-bold block mt-1">
+                                    {{ form.errors.plant_id }}
+                                </span>
                             </div>
                         </div>
 
@@ -185,12 +269,28 @@ function submit() {
 
                             <div>
                                 <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">PIC Leader</label>
-                                <input type="text" v-model="form.pic_leader" class="input-field font-medium" placeholder="Wahyu, Alif, Dian, dll." />
+                                <input
+                                    type="text"
+                                    v-model="form.pic_leader"
+                                    :class="['input-field font-medium', form.errors.pic_leader ? 'border-rose-500 ring-1 ring-rose-500' : '']"
+                                    placeholder="Wahyu, Alif, Dian, dll."
+                                />
+                                <span v-if="form.errors.pic_leader" class="text-2xs text-rose-600 font-bold block mt-1">
+                                    {{ form.errors.pic_leader }}
+                                </span>
                             </div>
 
                             <div>
                                 <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Jumlah Man Power (MP)</label>
-                                <input type="number" v-model.number="form.total_man_power" class="input-field font-mono font-bold" min="1" />
+                                <input
+                                    type="number"
+                                    v-model.number="form.total_man_power"
+                                    :class="['input-field font-mono font-bold', form.errors.total_man_power ? 'border-rose-500 ring-1 ring-rose-500' : '']"
+                                    min="1"
+                                />
+                                <span v-if="form.errors.total_man_power" class="text-2xs text-rose-600 font-bold block mt-1">
+                                    {{ form.errors.total_man_power }}
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -222,9 +322,93 @@ function submit() {
 
                     <!-- SECTION 4: DURASI & HASIL OUTPUT -->
                     <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 transition-colors">
-                        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 border-b border-slate-100 dark:border-slate-800 pb-2">
-                            B. Waktu Kerja & Kuantitas Output
-                        </h2>
+                        <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                                B. Waktu Kerja & Kuantitas Output
+                            </h2>
+                            <span class="text-xs font-mono font-bold text-slate-500">
+                                Standar Shift = 390 Menit
+                            </span>
+                        </div>
+
+                        <!-- Metering Live 390 Menit (Durasi Kerja + Downtime) -->
+                        <div
+                            :class="[
+                                'p-4 rounded-xl border text-xs space-y-2.5 transition-all',
+                                shiftTracking.status === 'exact' ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200' : '',
+                                shiftTracking.status === 'under' ? 'bg-amber-50/80 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200' : '',
+                                shiftTracking.status === 'over' ? 'bg-purple-50/80 dark:bg-purple-950/40 border-purple-300 dark:border-purple-800 text-purple-900 dark:text-purple-200' : '',
+                                shiftTracking.status === 'unfilled' ? 'bg-rose-50/80 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200' : '',
+                            ]"
+                        >
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-base">
+                                        {{ shiftTracking.status === 'exact' ? '✓' : (shiftTracking.status === 'unfilled' ? '⚠️' : '⏱️') }}
+                                    </span>
+                                    <span class="font-bold">
+                                        Total Waktu Shift Terdata:
+                                        <span class="font-mono text-sm underline decoration-2">{{ shiftTracking.totalShift }}m / 390m</span>
+                                    </span>
+                                </div>
+
+                                <div class="flex items-center gap-2 font-mono text-2xs font-bold">
+                                    <span class="px-2 py-0.5 rounded bg-white/70 dark:bg-slate-900/70 border border-current">
+                                        Kerja: {{ shiftTracking.duration }}m
+                                    </span>
+                                    <span>+</span>
+                                    <span class="px-2 py-0.5 rounded bg-white/70 dark:bg-slate-900/70 border border-current">
+                                        DT: {{ shiftTracking.totalDt }}m
+                                    </span>
+                                    <span>=</span>
+                                    <span
+                                        :class="[
+                                            'px-2 py-0.5 rounded font-extrabold',
+                                            shiftTracking.status === 'exact' ? 'bg-emerald-600 text-white' : '',
+                                            shiftTracking.status === 'under' ? 'bg-amber-600 text-white' : '',
+                                            shiftTracking.status === 'over' ? 'bg-purple-600 text-white' : '',
+                                            shiftTracking.status === 'unfilled' ? 'bg-rose-600 text-white' : '',
+                                        ]"
+                                    >
+                                        {{ shiftTracking.status === 'exact' ? 'PAS 390m ✓' : (shiftTracking.status === 'under' ? `KURANG ${Math.abs(shiftTracking.diff)}m` : (shiftTracking.status === 'over' ? `LEBIH +${shiftTracking.diff}m` : 'BELUM INPUT')) }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Progress Bar Multicolored -->
+                            <div class="w-full h-3 bg-slate-200 dark:bg-slate-700/80 rounded-full overflow-hidden flex">
+                                <div
+                                    class="bg-emerald-500 transition-all duration-300"
+                                    :style="{ width: `${shiftTracking.durationPercent}%` }"
+                                    :title="`Durasi Kerja: ${shiftTracking.duration} menit`"
+                                ></div>
+                                <div
+                                    class="bg-blue-500 transition-all duration-300"
+                                    :style="{ width: `${shiftTracking.plannedDtPercent}%` }"
+                                    :title="`Planned DT: ${shiftTracking.plannedDt} menit`"
+                                ></div>
+                                <div
+                                    class="bg-rose-500 transition-all duration-300"
+                                    :style="{ width: `${shiftTracking.unplannedDtPercent}%` }"
+                                    :title="`Unplanned DT: ${shiftTracking.unplannedDt} menit`"
+                                ></div>
+                            </div>
+
+                            <p class="text-2xs opacity-90 leading-relaxed">
+                                <template v-if="shiftTracking.status === 'exact'">
+                                    ✓ Alokasi waktu shift sempurna. Total durasi pengerjaan dan downtime tepat 390 menit (6.5 jam kerja efektif).
+                                </template>
+                                <template v-else-if="shiftTracking.status === 'under'">
+                                    ⚠️ Total pengerjaan baru <strong>{{ shiftTracking.totalShift }} menit</strong>, masih kurang <strong>{{ Math.abs(shiftTracking.diff) }} menit</strong>. Pastikan durasi kerja atau catatan downtime (mesin/setting/istirahat) diisi lengkap sampai 390 menit.
+                                </template>
+                                <template v-else-if="shiftTracking.status === 'over'">
+                                    ℹ️ Total waktu tercatat <strong>{{ shiftTracking.totalShift }} menit</strong>, melebihi batas standar shift (+{{ shiftTracking.diff }}m). Terhitung sebagai overtime atau waktu lanjutan shift.
+                                </template>
+                                <template v-else-if="shiftTracking.status === 'unfilled'">
+                                    ⚠️ Durasi kerja dan downtime belum diinput. Masukkan durasi pengerjaan dan kendala downtime di bawah.
+                                </template>
+                            </p>
+                        </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
                             <div>
@@ -232,11 +416,14 @@ function submit() {
                                 <input
                                     type="number"
                                     v-model.number="form.duration_minutes"
-                                    class="input-field font-mono font-bold text-lg"
-                                    min="1"
+                                    :class="['input-field font-mono font-bold text-lg', form.errors.duration_minutes ? 'border-rose-500 ring-1 ring-rose-500' : '']"
+                                    min="0"
                                 />
                                 <span class="text-2xs text-slate-500 font-mono mt-0.5 block">
-                                    ≈ {{ (form.duration_minutes / 60).toFixed(2) }} Jam
+                                    ≈ {{ ((form.duration_minutes || 0) / 60).toFixed(2) }} Jam
+                                </span>
+                                <span v-if="form.errors.duration_minutes" class="text-2xs text-rose-600 font-bold block mt-1">
+                                    {{ form.errors.duration_minutes }}
                                 </span>
                             </div>
 
@@ -254,9 +441,12 @@ function submit() {
                                 <input
                                     type="number"
                                     v-model.number="form.actual_output"
-                                    class="input-field font-mono font-bold text-lg text-indigo-600"
+                                    :class="['input-field font-mono font-bold text-lg text-indigo-600', form.errors.actual_output ? 'border-rose-500 ring-1 ring-rose-500' : '']"
                                     min="0"
                                 />
+                                <span v-if="form.errors.actual_output" class="text-2xs text-rose-600 font-bold block mt-1">
+                                    {{ form.errors.actual_output }}
+                                </span>
                             </div>
 
                             <div>
@@ -264,9 +454,12 @@ function submit() {
                                 <input
                                     type="number"
                                     v-model.number="form.reject_qty"
-                                    class="input-field font-mono font-bold text-rose-600"
+                                    :class="['input-field font-mono font-bold text-rose-600', form.errors.reject_qty ? 'border-rose-500 ring-1 ring-rose-500' : '']"
                                     min="0"
                                 />
+                                <span v-if="form.errors.reject_qty" class="text-2xs text-rose-600 font-bold block mt-1">
+                                    {{ form.errors.reject_qty }}
+                                </span>
                             </div>
                         </div>
 

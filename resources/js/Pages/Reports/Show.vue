@@ -28,6 +28,9 @@ function printReport() {
                 </div>
 
                 <div class="flex items-center flex-wrap gap-2">
+                    <Link :href="`/reports/${report.id}/edit`" class="btn-secondary text-xs flex items-center gap-1.5 border-amber-300 text-amber-800 dark:text-amber-300 bg-amber-50/70 dark:bg-amber-950/40 hover:bg-amber-100">
+                        <span>✏️ Edit Laporan</span>
+                    </Link>
                     <Link :href="`/reports/${report.id}/bstb`" class="btn-primary text-xs flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700">
                         <FileText class="w-4 h-4" />
                         <span>🖨️ Cetak BSTB (Serah Terima FG)</span>
@@ -134,8 +137,13 @@ function printReport() {
                                 <td class="p-2.5 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
                                     {{ (Number(it.oee_score || 0) * 100).toFixed(1) }}%
                                 </td>
-                                <td class="p-2.5 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
-                                    {{ (Number(it.cumulative_yield || 0) * 100).toFixed(1) }}%
+                                <td class="p-2.5 text-right font-mono font-bold">
+                                    <span v-if="it.batch_status === 'CLOSE'" class="text-slate-900 dark:text-slate-100">
+                                        {{ (Number(it.cumulative_yield || it.batch?.final_yield || 0) * 100).toFixed(1) }}%
+                                    </span>
+                                    <span v-else class="text-slate-400 dark:text-slate-500 text-2xs" title="Yield dihitung ketika batch berstatus CLOSE">
+                                        — (OPEN)
+                                    </span>
                                 </td>
                                 <td class="p-2.5 text-center">
                                     <BadgeStatus :status="it.batch_status" />

@@ -10,14 +10,129 @@ const props = defineProps({
 
 const isSaving = ref(false);
 
-function saveBstbMeta() {
-    if (!props.report?.id) return;
+// Format sheets: jika bstb.sheets ada, gunakan. Jika tidak, jadikan bstb sebagai sheet tunggal.
+const sheets = ref(
+    props.bstb.sheets && props.bstb.sheets.length > 0
+        ? JSON.parse(JSON.stringify(props.bstb.sheets))
+        : [
+              {
+                  report_id: props.report?.id,
+                  no_bstb: props.bstb.no_bstb,
+                  doc_control_no: props.bstb.doc_control_no || 'No. CM-09/PP/003-01.00',
+                  shift_tanggal: props.bstb.shift_tanggal,
+                  dari_departemen: props.bstb.dari_departemen || 'Produksi PT Herbatech',
+                  ke_departemen: props.bstb.ke_departemen || 'Warehouse PT Herbatech',
+                  kategori: props.bstb.kategori || 'FG',
+                  no_batch: props.bstb.no_batch,
+                  exp_date: props.bstb.exp_date,
+                  product_name: props.bstb.product_name,
+                  uom: props.bstb.uom || 'PCS',
+                  note_status: props.bstb.note_status || 'FG FULL',
+                  submitted_by: props.bstb.submitted_by || 'Leader Produksi',
+                  verified_by: props.bstb.verified_by || 'Supervisor Produksi',
+                  received_by: props.bstb.received_by || 'Warehouse PT Herbatech',
+                  items:
+                      props.bstb.items && props.bstb.items.length > 0
+                          ? JSON.parse(JSON.stringify(props.bstb.items))
+                          : [
+                                {
+                                    no: 1,
+                                    nama_barang: `Finish Good ${props.bstb.product_name}`,
+                                    no_batch: props.bstb.no_batch,
+                                    sub_batch: '',
+                                    lot: '',
+                                    exp_date: props.bstb.exp_date,
+                                    jumlah: 6888,
+                                    sub_jumlah: null,
+                                    uom: props.bstb.uom || 'PCS',
+                                    release_code: '',
+                                },
+                            ],
+              },
+          ]
+);
+
+// Tambah baris ceceran otomatis (Odd Carton / Loose Pack bertanda ...c)
+function addCeceranRow(sheetIdx) {
+    const s = sheets.value[sheetIdx];
+    const baseBatch = s.no_batch || '';
+    s.items.push({
+        no: s.items.length + 1,
+        nama_barang: `Finish Good ${s.product_name}`,
+        no_batch: `${baseBatch}c`,
+        sub_batch: '',
+        lot: '',
+        exp_date: s.exp_date,
+        jumlah: 24,
+        sub_jumlah: null,
+        uom: s.uom || 'PCS',
+        release_code: '',
+    });
+}
+
+function addNewRow(sheetIdx) {
+    const s = sheets.value[sheetIdx];
+    s.items.push({
+        no: s.items.length + 1,
+        nama_barang: `Finish Good ${s.product_name}`,
+        no_batch: s.no_batch,
+        sub_batch: '',
+        lot: '',
+        exp_date: s.exp_date,
+        jumlah: 0,
+        sub_jumlah: null,
+        uom: s.uom || 'PCS',
+        release_code: '',
+    });
+}
+
+function removeRow(sheetIdx, itemIdx) {
+    const s = sheets.value[sheetIdx];
+    if (s.items.length > 1) {
+        s.items.splice(itemIdx, 1);
+        s.items.forEach((item, idx) => {
+            item.no = idx + 1;
+        });
+    }
+}
+
+function resetToOriginal() {
+    if (props.bstb.sheets && props.bstb.sheets.length > 0) {
+        sheets.value = JSON.parse(JSON.stringify(props.bstb.sheets));
+    } else {
+        sheets.value = [
+            {
+                report_id: props.report?.id,
+                no_bstb: props.bstb.no_bstb,
+                doc_control_no: props.bstb.doc_control_no || 'No. CM-09/PP/003-01.00',
+                shift_tanggal: props.bstb.shift_tanggal,
+                dari_departemen: props.bstb.dari_departemen || 'Produksi PT Herbatech',
+                ke_departemen: props.bstb.ke_departemen || 'Warehouse PT Herbatech',
+                kategori: props.bstb.kategori || 'FG',
+                no_batch: props.bstb.no_batch,
+                exp_date: props.bstb.exp_date,
+                product_name: props.bstb.product_name,
+                uom: props.bstb.uom || 'PCS',
+                note_status: props.bstb.note_status || 'FG FULL',
+                submitted_by: props.bstb.submitted_by || 'Leader Produksi',
+                verified_by: props.bstb.verified_by || 'Supervisor Produksi',
+                received_by: props.bstb.received_by || 'Warehouse PT Herbatech',
+                items: JSON.parse(JSON.stringify(props.bstb.items || [])),
+            },
+        ];
+    }
+}
+
+function saveSheetMeta(sheetIdx) {
+    const s = sheets.value[sheetIdx];
+    if (!s?.report_id) return;
     isSaving.value = true;
     router.post(
-        `/reports/${props.report.id}/bstb-meta`,
+        `/reports/${s.report_id}/bstb-meta`,
         {
-            no_bstb: noBstbText.value,
-            notes: noteText.value,
+            no_bstb: s.no_bstb,
+            no_batch: s.no_batch,
+            notes: s.note_status,
         },
         {
             preserveScroll: true,
@@ -27,62 +142,6 @@ function saveBstbMeta() {
             },
         }
     );
-}
-
-// Editable state for items in case operator needs to split lots (e.g. DB-1026296 and DB-1026296c)
-const items = ref(
-    props.bstb.items && props.bstb.items.length > 0
-        ? JSON.parse(JSON.stringify(props.bstb.items))
-        : [
-              {
-                  no: 1,
-                  nama_barang: `Finish Good ${props.bstb.product_name}`,
-                  no_batch: props.bstb.no_batch,
-                  sub_batch: '',
-                  lot: '',
-                  exp_date: props.bstb.exp_date,
-                  jumlah: 6888,
-                  sub_jumlah: null,
-                  uom: props.bstb.uom,
-                  release_code: '',
-              },
-          ]
-);
-
-const noteText = ref(props.bstb.note_status || 'FG FULL');
-const noBstbText = ref(props.bstb.no_bstb);
-const noBatchText = ref(props.bstb.no_batch);
-
-function addNewRow() {
-    items.value.push({
-        no: items.value.length + 1,
-        nama_barang: `Finish Good ${props.bstb.product_name}`,
-        no_batch: `${noBatchText.value}c`,
-        sub_batch: '',
-        lot: '',
-        exp_date: props.bstb.exp_date,
-        jumlah: 0,
-        sub_jumlah: null,
-        uom: props.bstb.uom,
-        release_code: '',
-    });
-}
-
-function removeRow(index) {
-    if (items.value.length > 1) {
-        items.value.splice(index, 1);
-        // renumber
-        items.value.forEach((item, idx) => {
-            item.no = idx + 1;
-        });
-    }
-}
-
-function resetToOriginal() {
-    items.value = JSON.parse(JSON.stringify(props.bstb.items));
-    noteText.value = props.bstb.note_status || 'FG FULL';
-    noBstbText.value = props.bstb.no_bstb;
-    noBatchText.value = props.bstb.no_batch;
 }
 
 let savedTitle = '';
@@ -107,7 +166,8 @@ onUnmounted(() => {
 });
 
 function triggerPrint() {
-    saveBstbMeta();
+    // Simpan semua metadata sheet sebelum print
+    sheets.value.forEach((_, idx) => saveSheetMeta(idx));
     savedTitle = document.title;
     document.title = '';
     window.print();
@@ -118,7 +178,7 @@ function triggerPrint() {
 </script>
 
 <template>
-    <div class="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 py-6 px-4 transition-colors">
+    <div class="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 py-6 px-4 transition-colors print:min-h-0 print:py-0 print:px-0 print:bg-white">
         <!-- TOP TOOLBAR (HANYA MUNCUL DI LAYAR WEB, OTOMATIS HILANG SAAT DICETAK) -->
         <div class="max-w-[210mm] mx-auto mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 no-print bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
             <div class="flex items-center gap-2">
@@ -129,28 +189,18 @@ function triggerPrint() {
                     <h1 class="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                         <FileText class="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                         <span>Preview Bukti Serah Terima Barang (BSTB)</span>
-                        <span v-if="bstb.is_consolidated" class="text-2xs font-mono font-bold px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                            Konsolidasi Shift ({{ bstb.total_batches }} Batch)
+                        <span v-if="sheets.length > 1" class="text-2xs font-mono font-bold px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                            {{ sheets.length }} Lembar Dokumen (1 Lembar / Batch)
                         </span>
                     </h1>
                     <p class="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                        No. BSTB: {{ noBstbText }} &bull; {{ bstb.shift_tanggal }}
+                        {{ bstb.shift_tanggal }} &bull; Total {{ sheets.length }} Batch Siap Cetak
                     </p>
                 </div>
             </div>
 
             <!-- Action Buttons Toolbar -->
             <div class="flex items-center flex-wrap gap-2">
-                <button
-                    type="button"
-                    @click="addNewRow"
-                    class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300/80 dark:border-slate-700 flex items-center gap-1.5 transition cursor-pointer"
-                    title="Tambah Baris Rincian Lot/Sisa"
-                >
-                    <Plus class="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                    <span>Tambah Baris</span>
-                </button>
-
                 <button
                     type="button"
                     @click="resetToOriginal"
@@ -167,15 +217,30 @@ function triggerPrint() {
                     class="px-4 py-2 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2 shadow-sm transition cursor-pointer"
                 >
                     <Printer class="w-4 h-4" />
-                    <span>Cetak Dokumen (Print)</span>
+                    <span>🖨️ Cetak {{ sheets.length > 1 ? `${sheets.length} Lembar Dokumen` : 'Dokumen' }} (Print)</span>
                 </button>
             </div>
         </div>
 
-        <!-- FORMULIR RESMI CETAK (A4 PRINTABLE CONTAINER) -->
+        <!-- QUICK JUMP PILLS UNTUK NAVIGASI MULTI-LEMBAR DI LAYAR WEB -->
+        <div v-if="sheets.length > 1" class="max-w-[210mm] mx-auto mb-4 flex items-center gap-2 overflow-x-auto pb-1 no-print">
+            <span class="text-2xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0">Navigasi Lembar:</span>
+            <a
+                v-for="(sheet, sIdx) in sheets"
+                :key="sIdx"
+                :href="'#sheet-' + sIdx"
+                class="px-2.5 py-1 text-2xs font-mono font-bold rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-indigo-500 hover:text-indigo-600 transition shrink-0 shadow-2xs"
+            >
+                Lembar {{ sIdx + 1 }}: {{ sheet.no_batch }} ({{ sheet.product_name }})
+            </a>
+        </div>
+
+        <!-- CONTAINER SETIAP LEMBAR BSTB (1 BATCH = 1 LEMBAR DOKUMEN RESMI A4) -->
         <div
-            id="bstb-sheet"
-            class="max-w-[210mm] min-h-[297mm] mx-auto bg-white text-black p-8 sm:p-12 shadow-xl border border-slate-300 font-sans leading-normal select-text print:shadow-none print:border-none print:m-0"
+            v-for="(sheet, sheetIdx) in sheets"
+            :key="sheetIdx"
+            :id="'sheet-' + sheetIdx"
+            class="bstb-sheet max-w-[210mm] mx-auto bg-white text-black p-8 sm:p-12 shadow-xl border border-slate-300 font-sans leading-normal select-text mb-8 print:mb-0 print:shadow-none print:border-none print:m-0"
         >
             <!-- 1. KOP TABEL HEADER (3 KOLOM BORDER HITAM SOLID) -->
             <div class="border-2 border-black grid grid-cols-12 items-stretch">
@@ -198,7 +263,7 @@ function triggerPrint() {
                 <!-- Kolom 3: Nomor Dokumen Kontrol Mutu (Satu Baris Rapi & Terkunci) -->
                 <div class="col-span-3 p-2.5 flex items-center justify-center overflow-hidden">
                     <span class="text-xs sm:text-sm print:text-xs font-bold text-black font-mono text-center whitespace-nowrap tracking-tight leading-none">
-                        {{ bstb.doc_control_no }}
+                        {{ sheet.doc_control_no }}
                     </span>
                 </div>
             </div>
@@ -210,17 +275,17 @@ function triggerPrint() {
                     <div class="flex items-start">
                         <span class="w-36 shrink-0 font-medium">Shift / Tanggal</span>
                         <span class="mr-2 font-bold">:</span>
-                        <span class="font-bold">{{ bstb.shift_tanggal }}</span>
+                        <span class="font-bold">{{ sheet.shift_tanggal }}</span>
                     </div>
                     <div class="flex items-start">
                         <span class="w-36 shrink-0 font-medium">Dari Departemen</span>
                         <span class="mr-2 font-bold">:</span>
-                        <span>{{ bstb.dari_departemen }}</span>
+                        <span>{{ sheet.dari_departemen }}</span>
                     </div>
                     <div class="flex items-start">
                         <span class="w-36 shrink-0 font-medium">Ke Departemen</span>
                         <span class="mr-2 font-bold">:</span>
-                        <span>{{ bstb.ke_departemen }}</span>
+                        <span>{{ sheet.ke_departemen }}</span>
                     </div>
                 </div>
 
@@ -229,19 +294,19 @@ function triggerPrint() {
                     <div class="flex items-center">
                         <span class="w-24 shrink-0 font-medium">No. BSTB</span>
                         <span class="mr-2 font-bold">:</span>
-                        <!-- Mode Web: Input Form Dinamis Interaktif & Auto-Save (Opsi 3) -->
+                        <!-- Mode Web: Input Form Dinamis Interaktif & Auto-Save -->
                         <div class="no-print flex items-center gap-1.5">
                             <input
                                 type="text"
-                                v-model="noBstbText"
-                                @change="saveBstbMeta"
+                                v-model="sheet.no_bstb"
+                                @change="saveSheetMeta(sheetIdx)"
                                 class="px-2 py-0.5 text-xs font-mono font-bold text-slate-900 bg-amber-50 border border-amber-300 rounded shadow-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none w-56"
-                                title="No. BSTB Dinamis (Opsi 3): Otomatis terisi nomor register urut berikutnya. Anda dapat menyuntingnya jika perlu sebelum mencetak."
+                                title="No. BSTB Dinamis: Otomatis terisi nomor register urut berikutnya. Anda dapat menyuntingnya jika perlu sebelum mencetak."
                             />
                             <span v-if="isSaving" class="text-3xs text-indigo-600 font-sans font-medium animate-pulse">Menyimpan...</span>
                         </div>
                         <!-- Mode Cetak: Teks Resmi Dokumen Mutu Pabrik -->
-                        <span class="hidden print:inline-block font-mono font-bold">{{ noBstbText }}</span>
+                        <span class="hidden print:inline-block font-mono font-bold">{{ sheet.no_bstb }}</span>
                     </div>
                     <div class="flex items-start">
                         <span class="w-24 shrink-0 font-medium">Kategori</span>
@@ -250,10 +315,21 @@ function triggerPrint() {
                             (<span class="line-through text-slate-500">RM/PM/</span><strong class="font-black text-black">FG</strong><span class="line-through text-slate-500">/SM/SP/Other</span>)
                         </span>
                     </div>
-                    <div class="flex items-start">
+                    <div class="flex items-center">
                         <span class="w-24 shrink-0 font-medium">No. Batch</span>
                         <span class="mr-2 font-bold">:</span>
-                        <span class="font-mono font-bold">{{ noBatchText }}</span>
+                        <!-- Mode Web: Input Form Interaktif (Selalu 1 Nomor Batch Induk per Lembar!) -->
+                        <div class="no-print flex items-center gap-1.5">
+                            <input
+                                type="text"
+                                v-model="sheet.no_batch"
+                                @change="saveSheetMeta(sheetIdx)"
+                                class="px-2 py-0.5 text-xs font-mono font-bold text-slate-900 bg-amber-50 border border-amber-300 rounded shadow-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none w-44 uppercase"
+                                title="Nomor Batch Utama lembar ini (dapat disunting jika perlu)"
+                            />
+                        </div>
+                        <!-- Mode Cetak: Teks Resmi Dokumen Mutu Pabrik (1 Nomor Batch Induk Bersih) -->
+                        <span class="hidden print:inline-block font-mono font-bold uppercase">{{ sheet.no_batch }}</span>
                     </div>
                 </div>
             </div>
@@ -279,8 +355,8 @@ function triggerPrint() {
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="(it, idx) in items" :key="idx" class="border-b border-black">
-                            <!-- Nomor -->
+                        <tr v-for="(it, idx) in sheet.items" :key="idx" class="border-b border-black">
+                            <!-- Nomor Urut -->
                             <td class="border border-black p-2 text-center font-bold align-top">
                                 {{ idx + 1 }}
                             </td>
@@ -311,7 +387,14 @@ function triggerPrint() {
 
                             <!-- JUMLAH Output -->
                             <td class="border border-black p-2 text-right font-mono font-bold align-top">
-                                <div>{{ Number(it.jumlah).toLocaleString('id-ID') }}</div>
+                                <div class="no-print">
+                                    <input
+                                        type="number"
+                                        v-model="it.jumlah"
+                                        class="w-20 text-right font-mono font-bold text-xs p-1 bg-amber-50/80 border border-amber-300 rounded focus:ring-1 focus:ring-indigo-500"
+                                    />
+                                </div>
+                                <div class="hidden print:block">{{ Number(it.jumlah).toLocaleString('id-ID') }}</div>
                                 <div v-if="it.sub_jumlah">{{ Number(it.sub_jumlah).toLocaleString('id-ID') }}</div>
                             </td>
 
@@ -329,9 +412,9 @@ function triggerPrint() {
                             <!-- Tombol Hapus Baris (Hanya di Web, Hilang saat Print) -->
                             <td class="border border-black p-2 text-center align-middle no-print">
                                 <button
-                                    v-if="items.length > 1"
+                                    v-if="sheet.items.length > 1"
                                     type="button"
-                                    @click="removeRow(idx)"
+                                    @click="removeRow(sheetIdx, idx)"
                                     class="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-slate-100 transition"
                                     title="Hapus baris ini"
                                 >
@@ -343,6 +426,31 @@ function triggerPrint() {
                 </table>
             </div>
 
+            <!-- Tombol Tambah Baris & Tambah Ceceran (...c) Khusus Lembar Ini -->
+            <div class="mt-2 flex items-center justify-between no-print">
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        @click="addCeceranRow(sheetIdx)"
+                        class="px-2.5 py-1 rounded text-2xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1 transition cursor-pointer"
+                        title="Tambah baris koli sisa / ceceran bertanda ...c (misal: 24 pcs)"
+                    >
+                        <Plus class="w-3 h-3 text-amber-700" />
+                        <span>Tambah Ceceran ({{ sheet.no_batch }}c)</span>
+                    </button>
+                    <button
+                        type="button"
+                        @click="addNewRow(sheetIdx)"
+                        class="px-2.5 py-1 rounded text-2xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 flex items-center gap-1 transition cursor-pointer"
+                        title="Tambah baris kosong manual"
+                    >
+                        <Plus class="w-3 h-3 text-slate-600" />
+                        <span>Tambah Baris</span>
+                    </button>
+                </div>
+                <span class="text-3xs text-slate-400 font-medium">Lembar {{ sheetIdx + 1 }} dari {{ sheets.length }}</span>
+            </div>
+
             <!-- 4. CATATAN KAKI (NOTE DENGAN FORM INPUT INTERAKTIF SEBELUM PRINT) -->
             <div class="mt-2.5 text-xs font-bold text-black flex flex-wrap items-center gap-2">
                 <span class="shrink-0 font-bold">Note :</span>
@@ -351,8 +459,8 @@ function triggerPrint() {
                 <div class="no-print flex items-center gap-2 flex-wrap">
                     <input
                         type="text"
-                        v-model="noteText"
-                        @change="saveBstbMeta"
+                        v-model="sheet.note_status"
+                        @change="saveSheetMeta(sheetIdx)"
                         placeholder="Contoh: FG FULL / FG PARTIAL / Catatan tambahan..."
                         class="px-2.5 py-1 text-xs font-bold font-mono text-slate-900 bg-amber-50 border border-amber-300 rounded shadow-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none min-w-[240px]"
                         title="Ketik atau ubah catatan BSTB di sini sebelum mencetak"
@@ -360,7 +468,7 @@ function triggerPrint() {
                     <div class="flex items-center gap-1">
                         <button
                             type="button"
-                            @click="noteText = 'FG FULL'; saveBstbMeta()"
+                            @click="sheet.note_status = 'FG FULL'; saveSheetMeta(sheetIdx)"
                             class="px-2 py-0.5 text-2xs font-bold rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition cursor-pointer"
                             title="Set preset FG FULL"
                         >
@@ -368,7 +476,7 @@ function triggerPrint() {
                         </button>
                         <button
                             type="button"
-                            @click="noteText = 'FG PARTIAL'; saveBstbMeta()"
+                            @click="sheet.note_status = 'FG PARTIAL'; saveSheetMeta(sheetIdx)"
                             class="px-2 py-0.5 text-2xs font-bold rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition cursor-pointer"
                             title="Set preset FG PARTIAL"
                         >
@@ -379,7 +487,7 @@ function triggerPrint() {
 
                 <!-- Mode Cetak Kertas / PDF (Murni Teks Resmi Dokumen Mutu Pabrik) -->
                 <span class="hidden print:inline-block uppercase tracking-wide font-bold">
-                    {{ noteText }}
+                    {{ sheet.note_status }}
                 </span>
             </div>
 
@@ -391,7 +499,7 @@ function triggerPrint() {
                     <div class="h-24 flex items-end justify-center pb-1">
                         <span class="font-medium text-black">(....................................)</span>
                     </div>
-                    <p class="text-2xs text-slate-700 font-medium">{{ bstb.submitted_by }}</p>
+                    <p class="text-2xs text-slate-700 font-medium">{{ sheet.submitted_by }}</p>
                 </div>
 
                 <!-- Pihak 2: Yang Memeriksa (Supervisor Produksi) -->
@@ -400,7 +508,7 @@ function triggerPrint() {
                     <div class="h-24 flex items-end justify-center pb-1">
                         <span class="font-medium text-black">(....................................)</span>
                     </div>
-                    <p class="text-2xs text-slate-700 font-medium">{{ bstb.verified_by }}</p>
+                    <p class="text-2xs text-slate-700 font-medium">{{ sheet.verified_by }}</p>
                 </div>
 
                 <!-- Pihak 3: Yang Menerima (Warehouse Staff) -->
@@ -409,7 +517,7 @@ function triggerPrint() {
                     <div class="h-24 flex items-end justify-center pb-1">
                         <span class="font-medium text-black">(....................................)</span>
                     </div>
-                    <p class="text-2xs text-slate-700 font-medium">{{ bstb.received_by }}</p>
+                    <p class="text-2xs text-slate-700 font-medium">{{ sheet.received_by }}</p>
                 </div>
             </div>
         </div>
@@ -424,7 +532,7 @@ function triggerPrint() {
 }
 
 @media print {
-    /* Sembunyikan semua elemen navigasi dan tombol web */
+    /* Sembunyikan semua elemen UI layar web */
     .no-print,
     nav,
     aside,
@@ -456,8 +564,8 @@ function triggerPrint() {
         background-color: #ffffff !important;
     }
 
-    /* Lembar formulir diberi padding fisik sebagai pengganti margin kertas (12mm atas/bawah, 15mm kiri/kanan) */
-    #bstb-sheet {
+    /* Lembar formulir: Setiap lembar batch dicetak pada 1 halaman A4 terpisah (Poin 2) */
+    .bstb-sheet {
         box-shadow: none !important;
         border: none !important;
         padding: 12mm 15mm !important;
@@ -467,8 +575,15 @@ function triggerPrint() {
         min-height: auto !important;
         height: auto !important;
         box-sizing: border-box !important;
-        page-break-after: avoid !important;
         page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        page-break-after: always !important;
+        break-after: page !important;
+    }
+
+    .bstb-sheet:last-child {
+        page-break-after: auto !important;
+        break-after: auto !important;
     }
 
     table {
@@ -481,4 +596,3 @@ function triggerPrint() {
     }
 }
 </style>
-
