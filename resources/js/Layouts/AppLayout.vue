@@ -617,7 +617,7 @@ function closeMobileDrawer() {
                                 <span>Sesi Shift:</span>
                                 <span class="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                    Shift 1 (07:00 - 15:00)
+                                    Shift 1 (07:00 - 15:30)
                                 </span>
                             </div>
                             <div class="flex items-center justify-between text-slate-600 dark:text-slate-400 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
