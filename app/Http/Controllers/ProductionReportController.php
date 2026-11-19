@@ -252,6 +252,23 @@ class ProductionReportController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        $messages = [
+            'plant_id.required' => 'Lokasi Pabrik (Plant) wajib dipilih.',
+            'plant_id.exists' => 'Lokasi Pabrik yang dipilih tidak valid di database.',
+            'report_date.required' => 'Tanggal laporan produksi wajib diisi.',
+            'shift.required' => 'Shift kerja wajib ditentukan.',
+            'process_type.required' => 'Tipe proses kerja (Mixing, Filling, Sekunder) wajib dipilih.',
+            'pic_leader.required' => 'Nama PIC Leader penanggung jawab wajib diisi.',
+            'total_man_power.required' => 'Jumlah Man Power (MP) wajib diisi.',
+            'total_man_power.min' => 'Jumlah Man Power minimal 1 orang.',
+            'batch_id.required' => 'Nomor Batch wajib dipilih. Silakan pilih produk terlebih dahulu lalu tentukan nomor batch.',
+            'batch_id.exists' => 'Nomor Batch yang dipilih tidak valid di sistem.',
+            'batch_status.required' => 'Status batch (OPEN atau CLOSE) wajib ditentukan.',
+            'duration_minutes.min' => 'Durasi kerja tidak boleh bernilai negatif.',
+            'actual_output.min' => 'Actual Output tidak boleh bernilai negatif.',
+            'reject_qty.min' => 'Qty Reject tidak boleh bernilai negatif.',
+        ];
+
         $validated = $request->validate([
             'plant_id' => 'required|exists:plants,id',
             'report_date' => 'required|date',
@@ -277,7 +294,7 @@ class ProductionReportController extends Controller
             'downtimes.*.downtime_type' => 'nullable|string|in:planned,unplanned',
             'downtimes.*.duration_minutes' => 'nullable|integer|min:0',
             'downtimes.*.description' => 'nullable|string',
-        ]);
+        ], $messages);
 
         DB::transaction(function () use ($validated) {
             $batch = Batch::findOrFail($validated['batch_id']);
@@ -440,6 +457,23 @@ class ProductionReportController extends Controller
     {
         $report = ProductionReport::findOrFail($id);
 
+        $messages = [
+            'plant_id.required' => 'Lokasi Pabrik (Plant) wajib dipilih.',
+            'plant_id.exists' => 'Lokasi Pabrik yang dipilih tidak valid di database.',
+            'report_date.required' => 'Tanggal laporan produksi wajib diisi.',
+            'shift.required' => 'Shift kerja wajib ditentukan.',
+            'process_type.required' => 'Tipe proses kerja (Mixing, Filling, Sekunder) wajib dipilih.',
+            'pic_leader.required' => 'Nama PIC Leader penanggung jawab wajib diisi.',
+            'total_man_power.required' => 'Jumlah Man Power (MP) wajib diisi.',
+            'total_man_power.min' => 'Jumlah Man Power minimal 1 orang.',
+            'batch_id.required' => 'Nomor Batch wajib dipilih. Silakan pilih produk terlebih dahulu lalu tentukan nomor batch.',
+            'batch_id.exists' => 'Nomor Batch yang dipilih tidak valid di sistem.',
+            'batch_status.required' => 'Status batch (OPEN atau CLOSE) wajib ditentukan.',
+            'duration_minutes.min' => 'Durasi kerja tidak boleh bernilai negatif.',
+            'actual_output.min' => 'Actual Output tidak boleh bernilai negatif.',
+            'reject_qty.min' => 'Qty Reject tidak boleh bernilai negatif.',
+        ];
+
         $validated = $request->validate([
             'plant_id' => 'required|exists:plants,id',
             'report_date' => 'required|date',
@@ -466,7 +500,7 @@ class ProductionReportController extends Controller
             'downtimes.*.downtime_type' => 'nullable|string|in:planned,unplanned',
             'downtimes.*.duration_minutes' => 'nullable|integer|min:0',
             'downtimes.*.description' => 'nullable|string',
-        ]);
+        ], $messages);
 
         DB::transaction(function () use ($report, $validated) {
             $durationMinutes = (int) ($validated['duration_minutes'] ?? 0);

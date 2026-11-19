@@ -31,8 +31,8 @@ class Batch extends Model
         'total_output_sekunder' => 'decimal:2',
         'final_yield' => 'decimal:4',
         'final_balance' => 'decimal:2',
-        'start_date' => 'date',
-        'close_date' => 'date',
+        'start_date' => 'date:Y-m-d',
+        'close_date' => 'date:Y-m-d',
     ];
 
     public function product(): BelongsTo
