@@ -81,16 +81,133 @@ class ProductionReportController extends Controller
             });
         }
 
+        // Kalkulasi Total Waktu per Shift Group (Tanggal + Shift + Plant + Proses + Line)
+        // Standar 1 shift bersih = 390 menit (Durasi Kerja + Downtime Planned + Downtime Unplanned)
+        $allReportRows = DB::table('production_report_items')
+            ->join('production_reports', 'production_report_items.report_id', '=', 'production_reports.id')
+            ->select(
+                'production_reports.id as report_id',
+                'production_reports.report_date',
+                'production_reports.shift',
+                'production_reports.plant_id',
+                'production_reports.process_type',
+                'production_reports.line_name',
+                'production_report_items.duration_minutes',
+                'production_report_items.downtime_planned_minutes',
+                'production_report_items.downtime_unplanned_minutes'
+            )
+            ->get();
+
+        $shiftTotals = [];
+        $groupReportIds = [];
+
+        foreach ($allReportRows as $row) {
+            $key = implode('|', [
+                $row->report_date,
+                $row->shift,
+                $row->plant_id,
+                $row->process_type,
+                $row->line_name ?? '',
+            ]);
+            $itemTotal = (int) $row->duration_minutes + (int) $row->downtime_planned_minutes + (int) $row->downtime_unplanned_minutes;
+            $shiftTotals[$key] = ($shiftTotals[$key] ?? 0) + $itemTotal;
+            $groupReportIds[$key][] = $row->report_id;
+        }
+
+        // Filter 7: Kelengkapan Waktu Shift 390 Menit / Belum Input
+        if ($request->filled('time_status')) {
+            $timeStatus = $request->time_status;
+            if ($timeStatus === 'unfilled') {
+                $query->where('duration_minutes', '<=', 0)
+                    ->where('downtime_planned_minutes', '<=', 0)
+                    ->where('downtime_unplanned_minutes', '<=', 0);
+            } else {
+                $matchingReportIds = [];
+                foreach ($shiftTotals as $k => $totalMin) {
+                    $matches = match ($timeStatus) {
+                        'exact' => ($totalMin === 390),
+                        'under' => ($totalMin < 390),
+                        'over' => ($totalMin > 390),
+                        'not_exact' => ($totalMin !== 390),
+                        default => true,
+                    };
+                    if ($matches && !empty($groupReportIds[$k])) {
+                        foreach ($groupReportIds[$k] as $rId) {
+                            $matchingReportIds[] = $rId;
+                        }
+                    }
+                }
+                $matchingReportIds = array_values(array_unique($matchingReportIds));
+                if (!empty($matchingReportIds)) {
+                    $query->whereIn('report_id', $matchingReportIds);
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
+            }
+        }
+
         // Hitung Ringkasan Metrik KPI Sesuai Filter Aktif
         $cloneForStats = clone $query;
         $statsItems = $cloneForStats->get();
         $totalOutput = $statsItems->sum('actual_output');
         $avgOee = $statsItems->whereNotNull('oee_score')->avg('oee_score') ?? 0.0;
-        $avgYield = $statsItems->whereNotNull('cumulative_yield')->avg('cumulative_yield') ?? 0.0;
+
+        // Poin 1: Average Yield KPI hanya dihitung dari batch yang sudah CLOSE
+        $closedBatchYieldQuery = Batch::where('status', 'CLOSE')->whereNotNull('final_yield');
+        if ($request->filled('product_id')) {
+            $closedBatchYieldQuery->where('product_id', $request->product_id);
+        }
+        $avgYield = $closedBatchYieldQuery->avg('final_yield') ?? 0.0;
+
         $totalDowntimeMin = $statsItems->sum('downtime_planned_minutes') + $statsItems->sum('downtime_unplanned_minutes');
 
         // Paginasi Data Tabel
         $items = $query->orderByDesc('id')->paginate(15)->withQueryString();
+
+        // Anotasi data item dengan status kelengkapan 390 menit
+        $items->through(function ($item) use ($shiftTotals) {
+            $report = $item->report;
+            $key = implode('|', [
+                $report?->report_date,
+                $report?->shift,
+                $report?->plant_id,
+                $report?->process_type,
+                $report?->line_name ?? '',
+            ]);
+
+            $duration = (int) $item->duration_minutes;
+            $dtPlanned = (int) $item->downtime_planned_minutes;
+            $dtUnplanned = (int) $item->downtime_unplanned_minutes;
+            $totalDt = $dtPlanned + $dtUnplanned;
+            $itemTotal = $duration + $totalDt;
+
+            $groupTotal = $shiftTotals[$key] ?? $itemTotal;
+            $diff = $groupTotal - 390;
+
+            $isUnfilled = ($duration <= 0 && $totalDt <= 0);
+
+            if ($isUnfilled) {
+                $statusKey = 'unfilled';
+            } elseif ($groupTotal === 390) {
+                $statusKey = 'exact';
+            } elseif ($groupTotal < 390) {
+                $statusKey = 'under';
+            } else {
+                $statusKey = 'over';
+            }
+
+            $item->setAttribute('shift_tracking', [
+                'is_unfilled' => $isUnfilled,
+                'item_duration' => $duration,
+                'item_dt' => $totalDt,
+                'item_total' => $itemTotal,
+                'group_total' => $groupTotal,
+                'diff' => $diff,
+                'status' => $statusKey, // unfilled | exact | under | over
+            ]);
+
+            return $item;
+        });
 
         return Inertia::render('Reports/Index', [
             'items' => $items,
@@ -109,6 +226,7 @@ class ProductionReportController extends Controller
                 'start_date',
                 'end_date',
                 'period_preset',
+                'time_status',
             ]),
             'plants' => Plant::all(),
             'products' => Product::all(),
@@ -145,9 +263,9 @@ class ProductionReportController extends Controller
             // Item fields
             'batch_id' => 'required|exists:batches,id',
             'machine_id' => 'nullable|exists:machines,id',
-            'duration_minutes' => 'required|integer|min:1',
-            'qty_target_per_shift_mp' => 'required|numeric|min:0',
-            'actual_output' => 'required|numeric|min:0',
+            'duration_minutes' => 'nullable|integer|min:0',
+            'qty_target_per_shift_mp' => 'nullable|numeric|min:0',
+            'actual_output' => 'nullable|numeric|min:0',
             'batch_status' => 'required|string|in:OPEN,CLOSE',
             'downtime_planned_minutes' => 'nullable|integer|min:0',
             'downtime_unplanned_minutes' => 'nullable|integer|min:0',
@@ -176,30 +294,37 @@ class ProductionReportController extends Controller
             }
 
             // 2. Hitung Target Pengerjaan, Balance, dan Produktivitas
-            $plannedDt = $validated['downtime_planned_minutes'] ?? 0;
-            $unplannedDt = $validated['downtime_unplanned_minutes'] ?? 0;
-            $reject = $validated['reject_qty'] ?? 0;
+            $durationMinutes = (int) ($validated['duration_minutes'] ?? 0);
+            $plannedDt = (int) ($validated['downtime_planned_minutes'] ?? 0);
+            $unplannedDt = (int) ($validated['downtime_unplanned_minutes'] ?? 0);
+            $actualOutput = (float) ($validated['actual_output'] ?? 0);
+            $reject = (float) ($validated['reject_qty'] ?? 0);
+            $targetShiftMp = (float) ($validated['qty_target_per_shift_mp'] ?? 0);
 
             $prodCalc = $this->oeeService->calculateProductionTargets(
-                (int) $validated['duration_minutes'],
-                (int) $unplannedDt,
-                (float) $validated['actual_output'],
-                (float) $validated['qty_target_per_shift_mp']
+                $durationMinutes,
+                $unplannedDt,
+                $actualOutput,
+                $targetShiftMp
             );
 
             // 3. Hitung 3 Pilar OEE (Availability, Performance, Quality, OEE)
             $oeeCalc = $this->oeeService->calculateOee(
-                (int) $validated['duration_minutes'],
-                (int) $plannedDt,
-                (int) $unplannedDt,
-                (float) $validated['actual_output'],
-                (float) $reject,
-                (float) $idealSpeed
+                $durationMinutes,
+                $plannedDt,
+                $unplannedDt,
+                $actualOutput,
+                $reject,
+                $idealSpeed
             );
 
-            // 4. Hitung Cumulative Yield Batch
-            $currentCumulativeOutput = $batch->total_output_sekunder + (float) $validated['actual_output'];
-            $yieldCalc = $this->yieldService->calculateYield($currentCumulativeOutput, (float) $batch->batch_size);
+            // 4. Hitung Cumulative Yield Batch (Hanya difinalkan jika batch_status = CLOSE)
+            $cumulativeYield = null;
+            if ($validated['batch_status'] === 'CLOSE') {
+                $currentCumulativeOutput = $batch->total_output_sekunder + $actualOutput;
+                $yieldCalc = $this->yieldService->calculateYield($currentCumulativeOutput, (float) $batch->batch_size);
+                $cumulativeYield = $yieldCalc['yield'];
+            }
 
             // 5. Simpan Header Laporan
             $report = ProductionReport::create([
@@ -218,9 +343,9 @@ class ProductionReportController extends Controller
                 'report_id' => $report->id,
                 'batch_id' => $batch->id,
                 'machine_id' => $validated['machine_id'] ?? null,
-                'duration_minutes' => $validated['duration_minutes'],
-                'qty_target_per_shift_mp' => $validated['qty_target_per_shift_mp'],
-                'actual_output' => $validated['actual_output'],
+                'duration_minutes' => $durationMinutes,
+                'qty_target_per_shift_mp' => $targetShiftMp,
+                'actual_output' => $actualOutput,
                 'qty_target_pengerjaan' => $prodCalc['qty_target_pengerjaan'],
                 'balance_target' => $prodCalc['balance_target'],
                 'productivity' => $prodCalc['productivity'],
@@ -235,7 +360,7 @@ class ProductionReportController extends Controller
                 'quality_rate' => $oeeCalc['quality_rate'],
                 'oee_score' => $oeeCalc['oee_score'],
                 // Yield
-                'cumulative_yield' => $yieldCalc['yield'],
+                'cumulative_yield' => $cumulativeYield,
                 'notes' => $validated['notes'] ?? null,
             ]);
 
@@ -258,11 +383,227 @@ class ProductionReportController extends Controller
             $batch->status = $validated['batch_status'];
             if ($validated['batch_status'] === 'CLOSE') {
                 $batch->close_date = $validated['report_date'];
+            } else {
+                $batch->close_date = null;
             }
+            $batch->save();
             $this->yieldService->syncBatchTotals($batch);
         });
 
-        return redirect()->route('reports.index')->with('success', 'Laporan produksi berhasil disimpan dan OEE/Yield telah dikalkulasi!');
+        return redirect('/reports')->with('success', 'Laporan produksi berhasil disimpan dan OEE/Yield telah dikalkulasi!');
+    }
+
+    /**
+     * Halaman Edit Laporan Produksi
+     */
+    public function edit(Request $request, int $id): Response
+    {
+        $report = ProductionReport::with([
+            'plant',
+            'items.batch.product',
+            'items.machine',
+            'items.downtimeLogs',
+        ])->findOrFail($id);
+
+        $selectedItemId = $request->input('item_id');
+        $selectedItem = $selectedItemId
+            ? $report->items->firstWhere('id', (int) $selectedItemId)
+            : $report->items->first();
+
+        if (!$selectedItem && $report->items->isNotEmpty()) {
+            $selectedItem = $report->items->first();
+        }
+
+        // Tampilkan batch OPEN plus batch yang saat ini terpasang pada item laporan
+        $activeBatches = Batch::with('product')
+            ->where('status', 'OPEN')
+            ->orWhere('id', $selectedItem?->batch_id)
+            ->get()
+            ->unique('id')
+            ->values();
+
+        return Inertia::render('Reports/Edit', [
+            'report' => $report,
+            'item' => $selectedItem,
+            'plants' => Plant::all(),
+            'products' => Product::all(),
+            'machines' => Machine::all(),
+            'standards' => MachineStandard::all(),
+            'active_batches' => $activeBatches,
+        ]);
+    }
+
+    /**
+     * Simpan Perubahan Edit Laporan Produksi & Rekalkulasi OEE / Yield
+     */
+    public function update(Request $request, int $id): RedirectResponse
+    {
+        $report = ProductionReport::findOrFail($id);
+
+        $validated = $request->validate([
+            'plant_id' => 'required|exists:plants,id',
+            'report_date' => 'required|date',
+            'shift' => 'required|string',
+            'process_type' => 'required|string|in:mixing,filling,sekunder',
+            'line_name' => 'nullable|string',
+            'pic_leader' => 'required|string',
+            'total_man_power' => 'required|integer|min:1',
+            // Item fields
+            'item_id' => 'nullable|integer',
+            'batch_id' => 'required|exists:batches,id',
+            'machine_id' => 'nullable|exists:machines,id',
+            'duration_minutes' => 'nullable|integer|min:0',
+            'qty_target_per_shift_mp' => 'nullable|numeric|min:0',
+            'actual_output' => 'nullable|numeric|min:0',
+            'batch_status' => 'required|string|in:OPEN,CLOSE',
+            'downtime_planned_minutes' => 'nullable|integer|min:0',
+            'downtime_unplanned_minutes' => 'nullable|integer|min:0',
+            'reject_qty' => 'nullable|numeric|min:0',
+            'notes' => 'nullable|string',
+            // Downtime logs array
+            'downtimes' => 'nullable|array',
+            'downtimes.*.downtime_category' => 'nullable|string',
+            'downtimes.*.downtime_type' => 'nullable|string|in:planned,unplanned',
+            'downtimes.*.duration_minutes' => 'nullable|integer|min:0',
+            'downtimes.*.description' => 'nullable|string',
+        ]);
+
+        DB::transaction(function () use ($report, $validated) {
+            $durationMinutes = (int) ($validated['duration_minutes'] ?? 0);
+            $plannedDt = (int) ($validated['downtime_planned_minutes'] ?? 0);
+            $unplannedDt = (int) ($validated['downtime_unplanned_minutes'] ?? 0);
+            $actualOutput = (float) ($validated['actual_output'] ?? 0);
+            $reject = (float) ($validated['reject_qty'] ?? 0);
+            $targetShiftMp = (float) ($validated['qty_target_per_shift_mp'] ?? 0);
+
+            // 1. Update Header Laporan
+            $report->update([
+                'plant_id' => $validated['plant_id'],
+                'report_date' => $validated['report_date'],
+                'shift' => $validated['shift'],
+                'process_type' => $validated['process_type'],
+                'line_name' => $validated['line_name'] ?? 'Line Standard',
+                'pic_leader' => $validated['pic_leader'],
+                'total_man_power' => $validated['total_man_power'],
+                'notes' => $validated['notes'] ?? null,
+            ]);
+
+            // 2. Ambil Item yang diedit
+            $item = null;
+            if (!empty($validated['item_id'])) {
+                $item = ProductionReportItem::where('report_id', $report->id)->find($validated['item_id']);
+            }
+            if (!$item) {
+                $item = $report->items()->first();
+            }
+
+            $oldBatchId = $item?->batch_id;
+            $batch = Batch::findOrFail($validated['batch_id']);
+
+            // 3. Standar Mesin & Kalkulasi OEE
+            $idealSpeed = 24.00;
+            if (!empty($validated['machine_id'])) {
+                $standard = MachineStandard::where('machine_id', $validated['machine_id'])
+                    ->where('product_id', $batch->product_id)
+                    ->first();
+                if ($standard) {
+                    $idealSpeed = (float) $standard->ideal_speed_per_minute;
+                }
+            }
+
+            $prodCalc = $this->oeeService->calculateProductionTargets(
+                $durationMinutes,
+                $unplannedDt,
+                $actualOutput,
+                $targetShiftMp
+            );
+
+            $oeeCalc = $this->oeeService->calculateOee(
+                $durationMinutes,
+                $plannedDt,
+                $unplannedDt,
+                $actualOutput,
+                $reject,
+                $idealSpeed
+            );
+
+            // 4. Yield Batch: jika CLOSE hitung cumulative yield, jika OPEN null
+            $cumulativeYield = null;
+            if ($validated['batch_status'] === 'CLOSE') {
+                $currentCumulativeOutput = $batch->total_output_sekunder + $actualOutput;
+                if ($item && $item->batch_id === $batch->id) {
+                    $currentCumulativeOutput -= (float) $item->actual_output;
+                }
+                $yieldCalc = $this->yieldService->calculateYield($currentCumulativeOutput, (float) $batch->batch_size);
+                $cumulativeYield = $yieldCalc['yield'];
+            }
+
+            $itemData = [
+                'batch_id' => $batch->id,
+                'machine_id' => $validated['machine_id'] ?? null,
+                'duration_minutes' => $durationMinutes,
+                'qty_target_per_shift_mp' => $targetShiftMp,
+                'actual_output' => $actualOutput,
+                'qty_target_pengerjaan' => $prodCalc['qty_target_pengerjaan'],
+                'balance_target' => $prodCalc['balance_target'],
+                'productivity' => $prodCalc['productivity'],
+                'batch_status' => $validated['batch_status'],
+                'downtime_planned_minutes' => $plannedDt,
+                'downtime_unplanned_minutes' => $unplannedDt,
+                'reject_qty' => $reject,
+                // OEE
+                'loading_time_minutes' => $oeeCalc['loading_time_minutes'],
+                'availability_rate' => $oeeCalc['availability_rate'],
+                'performance_rate' => $oeeCalc['performance_rate'],
+                'quality_rate' => $oeeCalc['quality_rate'],
+                'oee_score' => $oeeCalc['oee_score'],
+                // Yield
+                'cumulative_yield' => $cumulativeYield,
+                'notes' => $validated['notes'] ?? null,
+            ];
+
+            if ($item) {
+                $item->update($itemData);
+            } else {
+                $itemData['report_id'] = $report->id;
+                $item = ProductionReportItem::create($itemData);
+            }
+
+            // 5. Update Downtime Logs (Hapus logs lama dan masukkan rincian baru)
+            $item->downtimeLogs()->delete();
+            if (!empty($validated['downtimes']) && is_array($validated['downtimes'])) {
+                foreach ($validated['downtimes'] as $dt) {
+                    if (!empty($dt['duration_minutes'])) {
+                        DowntimeLog::create([
+                            'report_item_id' => $item->id,
+                            'downtime_category' => $dt['downtime_category'] ?? 'mesin',
+                            'downtime_type' => $dt['downtime_type'] ?? 'unplanned',
+                            'duration_minutes' => $dt['duration_minutes'],
+                            'description' => $dt['description'] ?? null,
+                        ]);
+                    }
+                }
+            }
+
+            // 6. Update Batch Status & Sinkronisasi
+            $batch->status = $validated['batch_status'];
+            if ($validated['batch_status'] === 'CLOSE') {
+                $batch->close_date = $validated['report_date'];
+            } else {
+                $batch->close_date = null;
+            }
+            $batch->save();
+            $this->yieldService->syncBatchTotals($batch);
+
+            if ($oldBatchId && $oldBatchId !== $batch->id) {
+                $oldBatch = Batch::find($oldBatchId);
+                if ($oldBatch) {
+                    $this->yieldService->syncBatchTotals($oldBatch);
+                }
+            }
+        });
+
+        return redirect('/reports')->with('success', 'Laporan produksi berhasil diperbarui dan OEE/Yield telah dikalkulasi ulang!');
     }
 
     /**
@@ -347,27 +688,32 @@ class ProductionReportController extends Controller
             ];
         })->values()->all();
 
+        $singleSheet = [
+            'report_id' => $report->id,
+            'no_bstb' => $noBstb,
+            'doc_control_no' => 'No. CM-09/PP/003-01.00',
+            'shift_tanggal' => "{$shiftName}/ {$formattedDate}",
+            'dari_departemen' => 'Produksi PT Herbatech',
+            'ke_departemen' => 'Warehouse PT Herbatech',
+            'kategori' => 'FG',
+            'no_batch' => $primaryBatchNumber,
+            'exp_date' => $expDateFormatted,
+            'product_name' => $productName,
+            'uom' => $uom,
+            'note_status' => $noteStatus,
+            'submitted_by' => $report->pic_leader ?? 'Leader Produksi',
+            'verified_by' => 'Supervisor Produksi',
+            'received_by' => 'Warehouse PT Herbatech',
+            'items' => $initialItems,
+        ];
+
         return Inertia::render('Reports/Bstb', [
             'report' => $report,
-            'bstb' => [
-                'no_bstb' => $noBstb,
-                'doc_control_no' => 'No. CM-09/PP/003-01.00',
-                'shift_tanggal' => "{$shiftName}/ {$formattedDate}",
-                'dari_departemen' => 'Produksi PT Herbatech',
-                'ke_departemen' => 'Warehouse PT Herbatech',
-                'kategori' => 'FG',
-                'no_batch' => $primaryBatchNumber,
-                'exp_date' => $expDateFormatted,
-                'product_name' => $productName,
-                'uom' => $uom,
-                'note_status' => $noteStatus,
-                'submitted_by' => $report->pic_leader ?? 'Leader Produksi',
-                'verified_by' => 'Supervisor Produksi',
-                'received_by' => 'Warehouse PT Herbatech',
-                'items' => $initialItems,
+            'bstb' => array_merge($singleSheet, [
                 'is_consolidated' => false,
                 'total_batches' => 1,
-            ],
+                'sheets' => [$singleSheet],
+            ]),
         ]);
     }
 
@@ -440,24 +786,69 @@ class ProductionReportController extends Controller
             default => ucfirst(str_replace('_', ' ', $firstReport->shift ?? 'Shift 1'))
         };
 
-        // Kumpulkan nomor batch yang ada
-        $batchNumbers = $items->pluck('batch.batch_number')->filter()->unique()->values();
-        $headerBatch = $batchNumbers->count() > 1
-            ? $batchNumbers->implode(' / ')
-            : ($batchNumbers->first() ?? 'DB-1026294');
+        // Group items by batch_id: Setiap batch mendapatkan 1 lembar BSTB tersendiri (Poin 1 & 2)
+        $groupedByBatch = $items->groupBy('batch_id');
+        $sheets = [];
 
-        $productNames = $items->pluck('batch.product.name')->filter()->unique()->values();
-        $headerProduct = $productNames->implode(' / ');
+        foreach ($groupedByBatch as $batchId => $bItems) {
+            $rep = $bItems->first()->report ?? $firstReport;
+            $batch = $bItems->first()->batch;
+            $batchNumber = $batch?->batch_number ?? 'DB-1026294';
+            $prodName = $batch?->product?->name ?? 'DIABALANCE';
+            $uom = strtoupper($batch?->product?->unit ?? 'PCS');
+            $expDate = strtoupper($reportDate->copy()->addYears(2)->format('M y'));
 
-        $uoms = $items->pluck('batch.product.unit')->filter()->unique()->values();
-        $defaultUom = strtoupper($uoms->first() ?? 'PCS');
+            // Tentukan No. BSTB untuk lembar batch ini
+            if (!empty($rep->no_bstb)) {
+                $sheetNoBstb = $rep->no_bstb;
+            } else {
+                $sheetNoBstb = ProductionReport::generateNextBstbNumber($reportDate);
+                $rep->update(['no_bstb' => $sheetNoBstb]);
+            }
 
-        $isAllClosed = $items->every(fn($i) => $i->batch_status === 'CLOSE');
-        $defaultNoteStatus = $isAllClosed ? 'FG FULL' : 'FG PARTIAL';
-        $consolidatedNotes = $items->pluck('report.notes')->filter(fn($n) => !empty(trim($n ?? '')))->unique()->implode(', ');
-        $noteStatus = !empty($consolidatedNotes) ? $consolidatedNotes : $defaultNoteStatus;
+            // Tentukan Catatan (Note) untuk lembar batch ini
+            $bNotes = $bItems->pluck('report.notes')->filter(fn($n) => !empty(trim($n ?? '')))->unique()->implode(', ');
+            $isBatchClosed = $bItems->every(fn($i) => $i->batch_status === 'CLOSE');
+            $defaultBatchNote = $isBatchClosed ? 'FG FULL' : 'FG PARTIAL';
+            $sheetNote = !empty($bNotes) ? $bNotes : $defaultBatchNote;
 
-        // Susun rincian item otomatis dari database (Cara 2)
+            $sheetItems = $bItems->map(function ($it, $idx) use ($expDate, $uom, $prodName, $batchNumber) {
+                return [
+                    'no' => $idx + 1,
+                    'nama_barang' => 'Finish Good ' . $prodName,
+                    'no_batch' => $batchNumber,
+                    'sub_batch' => null,
+                    'lot' => '',
+                    'exp_date' => $expDate,
+                    'jumlah' => (float) $it->actual_output,
+                    'sub_jumlah' => null,
+                    'uom' => $uom,
+                    'release_code' => '',
+                ];
+            })->values()->all();
+
+            $sheets[] = [
+                'report_id' => $rep->id,
+                'no_bstb' => $sheetNoBstb,
+                'doc_control_no' => 'No. CM-09/PP/003-01.00',
+                'shift_tanggal' => "{$shiftName}/ {$formattedDate}",
+                'dari_departemen' => 'Produksi PT Herbatech',
+                'ke_departemen' => 'Warehouse PT Herbatech',
+                'kategori' => 'FG',
+                'no_batch' => $batchNumber, // Selalu 1 nomor batch induk per lembar! (Poin 1)
+                'exp_date' => $expDate,
+                'product_name' => $prodName,
+                'uom' => $uom,
+                'note_status' => $sheetNote,
+                'submitted_by' => $rep->pic_leader ?? 'Leader Produksi',
+                'verified_by' => 'Supervisor Produksi',
+                'received_by' => 'Warehouse PT Herbatech',
+                'items' => $sheetItems,
+            ];
+        }
+
+        // Susun rincian item otomatis dari database (Kompatibilitas)
+        $defaultUom = 'PCS';
         $aggregatedItems = $items->map(function ($it, $idx) use ($reportDate, $defaultUom) {
             $expDateObj = $reportDate->copy()->addYears(2);
             $expDate = strtoupper($expDateObj->format('M y'));
@@ -482,23 +873,24 @@ class ProductionReportController extends Controller
         return Inertia::render('Reports/Bstb', [
             'report' => $firstReport,
             'bstb' => [
-                'no_bstb' => $noBstb,
+                'no_bstb' => $sheets[0]['no_bstb'] ?? $noBstb,
                 'doc_control_no' => 'No. CM-09/PP/003-01.00',
                 'shift_tanggal' => "{$shiftName}/ {$formattedDate}",
                 'dari_departemen' => 'Produksi PT Herbatech',
                 'ke_departemen' => 'Warehouse PT Herbatech',
                 'kategori' => 'FG',
-                'no_batch' => $headerBatch,
-                'exp_date' => strtoupper($reportDate->copy()->addYears(2)->format('M y')),
-                'product_name' => $headerProduct,
-                'uom' => $defaultUom,
-                'note_status' => $noteStatus,
+                'no_batch' => $sheets[0]['no_batch'] ?? '',
+                'exp_date' => $sheets[0]['exp_date'] ?? '',
+                'product_name' => $sheets[0]['product_name'] ?? '',
+                'uom' => $sheets[0]['uom'] ?? 'PCS',
+                'note_status' => $sheets[0]['note_status'] ?? 'FG FULL',
                 'submitted_by' => $firstReport->pic_leader ?? 'Leader Produksi',
                 'verified_by' => 'Supervisor Produksi',
                 'received_by' => 'Warehouse PT Herbatech',
                 'items' => $aggregatedItems,
                 'is_consolidated' => true,
-                'total_batches' => $batchNumbers->count(),
+                'total_batches' => count($sheets),
+                'sheets' => $sheets,
             ],
         ]);
     }

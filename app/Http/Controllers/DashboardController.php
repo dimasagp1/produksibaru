@@ -20,7 +20,7 @@ class DashboardController extends Controller
         $totalOutput = ProductionReportItem::sum('actual_output');
         $totalReject = ProductionReportItem::sum('reject_qty');
         $avgOee = ProductionReportItem::whereNotNull('oee_score')->avg('oee_score') ?? 0.0;
-        $avgYield = Batch::whereNotNull('final_yield')->avg('final_yield') ?? 0.9850;
+        $avgYield = Batch::where('status', 'CLOSE')->whereNotNull('final_yield')->avg('final_yield') ?? 0.9850;
         $totalPlannedDt = ProductionReportItem::sum('downtime_planned_minutes');
         $totalUnplannedDt = ProductionReportItem::sum('downtime_unplanned_minutes');
         $totalDtHours = round(($totalPlannedDt + $totalUnplannedDt) / 60, 1);
@@ -70,7 +70,7 @@ class DashboardController extends Controller
         $productYields = Product::withCount('batches')
             ->get()
             ->map(function ($p) {
-                $avgY = $p->batches()->whereNotNull('final_yield')->avg('final_yield');
+                $avgY = $p->batches()->where('status', 'CLOSE')->whereNotNull('final_yield')->avg('final_yield');
                 return [
                     'code' => $p->code,
                     'name' => $p->name,
