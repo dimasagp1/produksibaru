@@ -9,16 +9,39 @@ use App\Models\Batch;
 use App\Models\Plant;
 use App\Models\Product;
 use App\Models\Machine;
+use App\Models\User;
+use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
 
 class ProductionReportWorkflowTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected User $adminUser;
+    protected User $teamLeaderUser;
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->seed(ProductionMasterSeeder::class);
+
+        $this->adminUser = User::create([
+            'name' => 'Admin Test',
+            'email' => 'admin.test@herbatech.co.id',
+            'role' => 'admin',
+            'password' => Hash::make('password123'),
+            'email_verified_at' => now(),
+        ]);
+
+        $this->teamLeaderUser = User::create([
+            'name' => 'Leader Test',
+            'email' => 'leader.test@herbatech.co.id',
+            'role' => 'teamleader',
+            'password' => Hash::make('password123'),
+            'email_verified_at' => now(),
+        ]);
+
+        $this->actingAs($this->adminUser);
     }
 
     public function test_dashboard_page_loads_successfully(): void
@@ -579,6 +602,68 @@ class ProductionReportWorkflowTest extends TestCase
         $response->assertStatus(302);
         $this->assertEquals('http://127.0.0.1:8001/reports', $response->headers->get('Location'));
         $response->assertSessionHas('success');
+    }
+
+    public function test_guest_is_redirected_to_login(): void
+    {
+        auth()->logout();
+        $response = $this->get('/dashboard');
+        $response->assertRedirect('/login');
+    }
+
+    public function test_login_flow_and_session_handling(): void
+    {
+        auth()->logout();
+
+        $pageResponse = $this->get('/login');
+        $pageResponse->assertStatus(200);
+        $pageResponse->assertInertia(fn (Assert $page) => $page->component('Auth/Login'));
+
+        $loginResponse = $this->post('/login', [
+            'email' => 'leader.test@herbatech.co.id',
+            'password' => 'password123',
+        ]);
+        $loginResponse->assertRedirect('/dashboard');
+        $this->assertAuthenticatedAs($this->teamLeaderUser);
+
+        $logoutResponse = $this->post('/logout');
+        $logoutResponse->assertRedirect('/login');
+        $this->assertGuest();
+    }
+
+    public function test_team_leader_role_access_and_restrictions(): void
+    {
+        $this->actingAs($this->teamLeaderUser);
+
+        // Diizinkan untuk Team Leader
+        $this->get('/dashboard')->assertStatus(200);
+        $this->get('/reports')->assertStatus(200);
+        $this->get('/reports/create')->assertStatus(200);
+
+        // Dibatasi untuk Team Leader (Redirect ke dashboard dengan alert error)
+        $this->get('/batches')->assertRedirect('/dashboard')->assertSessionHas('error');
+        $this->get('/reports/bstb-shift')->assertRedirect('/dashboard')->assertSessionHas('error');
+        $this->get('/master/products')->assertRedirect('/dashboard')->assertSessionHas('error');
+
+        // Request API / JSON ditolak dengan 403 Forbidden
+        $this->getJson('/batches')->assertStatus(403);
+        $this->getJson('/reports/bstb-shift')->assertStatus(403);
+    }
+
+    public function test_admin_has_full_access_to_all_features(): void
+    {
+        $this->actingAs($this->adminUser);
+
+        $this->get('/dashboard')->assertStatus(200);
+        $this->get('/reports')->assertStatus(200);
+        $this->get('/reports/create')->assertStatus(200);
+        $this->get('/batches')->assertStatus(200);
+        $this->get('/master/products')->assertStatus(200);
+
+        // Akses BSTB Shift diperbolehkan oleh role middleware (tidak dialihkan ke /dashboard seperti halnya Team Leader)
+        $response = $this->get('/reports/bstb-shift');
+        $this->assertNotEquals(403, $response->getStatusCode());
+        $response->assertRedirect('/reports');
     }
 }
 

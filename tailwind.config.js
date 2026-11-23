@@ -10,6 +10,7 @@ export default {
     extend: {
       fontSize: {
         '2xs': ['10px', '14px'],
+        '3xs': ['9px', '12px'],
       },
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],

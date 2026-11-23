@@ -58,11 +58,19 @@ function getShiftInfo(shiftKey) {
                     <Link :href="`/reports/${report.id}/edit`" class="btn-secondary text-xs flex items-center gap-1.5 border-amber-300 text-amber-800 dark:text-amber-300 bg-amber-50/70 dark:bg-amber-950/40 hover:bg-amber-100">
                         <span>✏️ Edit Laporan</span>
                     </Link>
-                    <Link :href="`/reports/${report.id}/bstb`" class="btn-primary text-xs flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700">
+                    <Link
+                        v-if="$page.props.auth?.user?.can_print_bstb"
+                        :href="`/reports/${report.id}/bstb`"
+                        class="btn-primary text-xs flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700"
+                    >
                         <FileText class="w-4 h-4" />
                         <span>🖨️ Cetak BSTB (Serah Terima FG)</span>
                     </Link>
-                    <button @click="printReport" class="btn-secondary text-xs flex items-center gap-1.5">
+                    <button
+                        v-if="$page.props.auth?.user?.can_print_bstb"
+                        @click="printReport"
+                        class="btn-secondary text-xs flex items-center gap-1.5"
+                    >
                         <Printer class="w-4 h-4" />
                         <span>Cetak Lembar Produksi</span>
                     </button>

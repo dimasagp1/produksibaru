@@ -1,31 +1,39 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProductionReportController;
 use App\Http\Controllers\BatchController;
 use App\Http\Controllers\Master\ProductController;
 
-Route::redirect('/', '/dashboard');
+// Rute Tamu (Belum Login)
+Route::middleware('guest')->group(function () {
+    Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
+    Route::post('/login', [AuthenticatedSessionController::class, 'store']);
+});
 
-Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+// Rute Terautentikasi (Sudah Login: Admin & Team Leader)
+Route::middleware('auth')->group(function () {
+    Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 
-// Production Reports (Index, Create, Store, Show, BSTB Print Single & Konsolidasi Shift)
-Route::get('/reports/bstb-shift', [ProductionReportController::class, 'bstbShift'])->name('reports.bstb-shift');
-Route::get('/reports/{id}/bstb', [ProductionReportController::class, 'bstb'])->name('reports.bstb');
-Route::post('/reports/{id}/bstb-meta', [ProductionReportController::class, 'updateBstbMeta'])->name('reports.bstb-meta');
-Route::resource('reports', ProductionReportController::class);
+    Route::redirect('/', '/dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-// Batches Management (CRUD, Show Pipeline, Status Toggle)
-Route::resource('batches', BatchController::class);
+    // Khusus Admin: Cetak BSTB & Konsolidasi Shift
+    Route::middleware('role:admin')->group(function () {
+        Route::get('/reports/bstb-shift', [ProductionReportController::class, 'bstbShift'])->name('reports.bstb-shift');
+        Route::get('/reports/{id}/bstb', [ProductionReportController::class, 'bstb'])->name('reports.bstb');
+        Route::post('/reports/{id}/bstb-meta', [ProductionReportController::class, 'updateBstbMeta'])->name('reports.bstb-meta');
+    });
 
-// Master Data Standards
-Route::get('/master/products', [ProductController::class, 'index'])->name('master.products');
+    // Laporan Produksi (Akses Bersama: Admin & Team Leader)
+    Route::resource('reports', ProductionReportController::class);
 
-// Logout Route
-Route::post('/logout', function (\Illuminate\Http\Request $request) {
-    \Illuminate\Support\Facades\Auth::logout();
-    $request->session()->invalidate();
-    $request->session()->regenerateToken();
-    return redirect('/dashboard');
-})->name('logout');
+    // Khusus Admin: Manajemen Batch dan Standar Manufaktur & Mesin
+    Route::middleware('role:admin')->group(function () {
+        Route::resource('batches', BatchController::class);
+        Route::get('/master/products', [ProductController::class, 'index'])->name('master.products');
+    });
+});
+

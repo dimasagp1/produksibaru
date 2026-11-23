@@ -275,8 +275,9 @@ function closeMobileDrawer() {
                         <span v-show="isSidebarOpen" class="truncate">Laporan Produksi</span>
                     </Link>
 
-                    <!-- Manajemen Batch -->
+                    <!-- Manajemen Batch (Khusus Admin) -->
                     <Link
+                        v-if="$page.props.auth?.user?.can_manage_batches"
                         href="/batches"
                         :class="[
                             'flex items-center rounded-xl font-semibold text-xs md:text-sm transition group',
@@ -292,8 +293,8 @@ function closeMobileDrawer() {
                     </Link>
                 </div>
 
-                <!-- Group 3: Standar & Mesin Pabrik -->
-                <div class="space-y-1">
+                <!-- Group 3: Standar & Mesin Pabrik (Khusus Admin) -->
+                <div v-if="$page.props.auth?.user?.can_manage_master" class="space-y-1">
                     <span v-show="isSidebarOpen" class="px-3 text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-2">
                         Standar Manufaktur
                     </span>
@@ -339,9 +340,17 @@ function closeMobileDrawer() {
                             <p class="text-xs font-bold text-slate-900 dark:text-slate-100 truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                                 {{ user.name }}
                             </p>
-                            <p class="text-2xs text-slate-500 dark:text-slate-400 truncate font-mono">
-                                {{ user.role }}
-                            </p>
+                            <div class="flex items-center mt-0.5">
+                                <span :class="[
+                                    'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border leading-tight',
+                                    user.role === 'admin' 
+                                        ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200/80 dark:border-purple-800/60'
+                                        : 'bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border-teal-200/80 dark:border-teal-800/60'
+                                ]">
+                                    <ShieldCheck class="w-2.5 h-2.5 shrink-0" />
+                                    <span>{{ user.role === 'admin' ? 'Administrator' : 'Team Leader' }}</span>
+                                </span>
+                            </div>
                         </div>
                     </div>
 
@@ -590,9 +599,14 @@ function closeMobileDrawer() {
                                     <p class="text-xs text-slate-500 dark:text-slate-400 font-mono truncate">
                                         {{ user.email }}
                                     </p>
-                                    <span class="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md text-2xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60">
-                                        <ShieldCheck class="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                                        {{ user.role }}
+                                    <span :class="[
+                                        'inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md text-2xs font-semibold border',
+                                        user.role === 'admin'
+                                            ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800/60'
+                                            : 'bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-800/60'
+                                    ]">
+                                        <ShieldCheck class="w-3 h-3" />
+                                        {{ user.role_label || (user.role === 'admin' ? 'Administrator' : 'Team Leader') }}
                                     </span>
                                 </div>
                             </div>

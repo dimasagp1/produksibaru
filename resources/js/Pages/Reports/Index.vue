@@ -158,7 +158,7 @@ function getShiftInfo(shiftKey) {
 
                 <div class="flex items-center gap-2 flex-wrap">
                     <button
-                        v-if="formFilter.shift || formFilter.start_date"
+                        v-if="$page.props.auth?.user?.can_print_bstb && (formFilter.shift || formFilter.start_date)"
                         @click="printCurrentShiftBstb"
                         class="btn-secondary text-xs flex items-center gap-1.5 border-indigo-200 text-indigo-700 dark:text-indigo-300 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
                         title="Cetak BSTB gabungan untuk shift yang sedang difilter"
@@ -166,7 +166,11 @@ function getShiftInfo(shiftKey) {
                         <FileText class="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                         <span>Cetak BSTB Shift</span>
                     </button>
-                    <button @click="printTable" class="btn-secondary text-xs flex items-center gap-1.5">
+                    <button
+                        v-if="$page.props.auth?.user?.can_print_bstb"
+                        @click="printTable"
+                        class="btn-secondary text-xs flex items-center gap-1.5"
+                    >
                         <Printer class="w-4 h-4 text-slate-600 dark:text-slate-400" />
                         <span>Cetak Rekap</span>
                     </button>
@@ -332,8 +336,8 @@ function getShiftInfo(shiftKey) {
                 </div>
             </div>
 
-            <!-- BANNER AKSI KONSOLIDASI BSTB SHIFT (CARA 2) -->
-            <div v-if="selectedItemIds.length > 0" class="p-4 bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all animate-in fade-in">
+            <!-- BANNER AKSI KONSOLIDASI BSTB SHIFT (CARA 2 - KHUSUS ADMIN) -->
+            <div v-if="$page.props.auth?.user?.can_print_bstb && selectedItemIds.length > 0" class="p-4 bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all animate-in fade-in">
                 <div class="flex items-center gap-2.5">
                     <span class="w-3 h-3 rounded-full bg-indigo-600 animate-pulse shrink-0"></span>
                     <div>
@@ -371,7 +375,7 @@ function getShiftInfo(shiftKey) {
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold uppercase tracking-wider">
                             <tr>
-                                <th class="py-3 px-3 text-center w-8">
+                                <th v-if="$page.props.auth?.user?.can_print_bstb" class="py-3 px-3 text-center w-8">
                                     <input
                                         type="checkbox"
                                         :checked="isAllSelected"
@@ -402,8 +406,8 @@ function getShiftInfo(shiftKey) {
                                     selectedItemIds.includes(item.id) ? 'bg-indigo-50/50 dark:bg-indigo-950/30' : ''
                                 ]"
                             >
-                                <!-- Checkbox Pilihan -->
-                                <td class="py-3 px-3 text-center">
+                                <!-- Checkbox Pilihan (Khusus Admin) -->
+                                <td v-if="$page.props.auth?.user?.can_print_bstb" class="py-3 px-3 text-center">
                                     <input
                                         type="checkbox"
                                         :value="item.id"
@@ -583,6 +587,7 @@ function getShiftInfo(shiftKey) {
                                         Detail
                                     </Link>
                                     <Link
+                                        v-if="$page.props.auth?.user?.can_print_bstb"
                                         :href="`/reports/${item.report_id}/bstb`"
                                         class="text-emerald-600 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-200 font-semibold px-2 py-1 rounded hover:bg-emerald-50 dark:hover:bg-slate-800 transition font-mono text-2xs"
                                         title="Cetak Bukti Serah Terima Barang (BSTB)"
@@ -593,7 +598,7 @@ function getShiftInfo(shiftKey) {
                             </tr>
 
                             <tr v-if="items.data.length === 0">
-                                <td colspan="12" class="py-12 text-center text-slate-400 dark:text-slate-500">
+                                <td :colspan="$page.props.auth?.user?.can_print_bstb ? 12 : 11" class="py-12 text-center text-slate-400 dark:text-slate-500">
                                     <span class="text-3xl block mb-2">🔍</span>
                                     Tidak ada data laporan yang cocok dengan filter yang dipilih.
                                 </td>
