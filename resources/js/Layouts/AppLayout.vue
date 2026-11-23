@@ -391,19 +391,20 @@ function closeMobileDrawer() {
         <!-- MAIN AREA (OFFSET OLEH LEBAR SIDEBAR) -->
         <div
             :class="[
-                'flex-1 flex flex-col min-w-0 transition-all duration-300 pb-28',
+                'flex-1 flex flex-col min-w-0 transition-all duration-300 pb-20 md:pb-28',
                 isSidebarOpen ? 'md:ml-64' : 'md:ml-20'
             ]"
         >
             <!-- TOP APP HEADER -->
-            <header class="h-16 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 shadow-2xs px-4 sm:px-6 lg:px-8 flex items-center justify-between transition-colors duration-200">
+            <header class="h-16 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 shadow-2xs px-3 sm:px-6 lg:px-8 flex items-center justify-between transition-colors duration-200">
                 <!-- Sisi Kiri: Tombol Toggle Sidebar & Judul -->
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2 sm:gap-3">
                     <!-- Tombol Hamburger Mobile -->
                     <button
                         type="button"
                         @click="toggleMobileDrawer"
                         class="md:hidden p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                        title="Buka Menu"
                     >
                         <Menu class="w-5 h-5" />
                     </button>
@@ -426,10 +427,17 @@ function closeMobileDrawer() {
                             Plant A & Plant B (Mixing, Filling, Sekunder)
                         </h2>
                     </div>
+
+                    <!-- Label Ringkas di Mobile -->
+                    <div class="sm:hidden min-w-0">
+                        <h2 class="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                            Produksi HBT
+                        </h2>
+                    </div>
                 </div>
 
                 <!-- Sisi Kanan: Status, Toggle Dark/Light & Shortcut -->
-                <div class="flex items-center gap-2 sm:gap-3">
+                <div class="flex items-center gap-1.5 sm:gap-3">
                     <span class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                         Plant Online
@@ -447,15 +455,21 @@ function closeMobileDrawer() {
                         <span class="hidden md:inline">{{ isDarkMode ? 'Mode Terang' : 'Mode Gelap' }}</span>
                     </button>
 
-                    <Link href="/reports/create" class="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5">
-                        <ClipboardPen class="w-4 h-4" />
-                        <span>+ Input Laporan</span>
+                    <!-- Shortcut Tombol Input Laporan (Hanya muncul jika tidak di halaman create) -->
+                    <Link
+                        v-if="!$page.url.startsWith('/reports/create')"
+                        href="/reports/create"
+                        class="btn-primary text-xs py-1.5 px-2.5 sm:px-3 flex items-center gap-1.5"
+                        title="Input Laporan Baru"
+                    >
+                        <ClipboardPen class="w-4 h-4 shrink-0" />
+                        <span class="hidden sm:inline">+ Input Laporan</span>
                     </Link>
                 </div>
             </header>
 
             <!-- KONTEN UTAMA HALAMAN -->
-            <main class="flex-1 w-full px-4 sm:px-6 lg:px-8 py-6">
+            <main class="flex-1 w-full px-3.5 sm:px-6 lg:px-8 py-4 sm:py-6">
                 <!-- Global Flash Alert: Success -->
                 <div
                     v-if="$page.props.flash?.success && !flashDismissed"

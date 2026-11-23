@@ -199,17 +199,28 @@ function getShiftInfo(shiftKey) {
     <AppLayout>
         <div class="space-y-6">
             <!-- Header Navigasi Form Edit -->
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
-                <div>
-                    <h1 class="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2">
-                        <ClipboardPen class="w-6 h-6 text-amber-600 dark:text-amber-400 shrink-0" />
-                        <span>Edit Laporan Produksi #{{ report.id }}</span>
-                    </h1>
-                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
-                        {{ formatDate(report.report_date) }} | {{ report.plant?.name }} | {{ getShiftInfo(report.shift).name }} ({{ getShiftInfo(report.shift).hours }})
-                    </p>
+            <div class="flex items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <Link
+                        href="/reports"
+                        class="p-2 rounded-xl text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 transition cursor-pointer shrink-0"
+                        title="Kembali ke Daftar Laporan"
+                    >
+                        <ArrowLeft class="w-4 h-4" />
+                    </Link>
+                    <div class="min-w-0">
+                        <h1 class="text-base sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-1.5 truncate">
+                            <ClipboardPen class="w-5 h-5 sm:w-6 sm:h-6 text-amber-600 dark:text-amber-400 shrink-0" />
+                            <span class="truncate">Edit Laporan Produksi #{{ report.id }}</span>
+                        </h1>
+                        <p class="text-2xs sm:text-xs text-slate-500 dark:text-slate-400 font-mono truncate">
+                            {{ formatDate(report.report_date) }} | {{ report.plant?.name }} | {{ getShiftInfo(report.shift).name }}
+                        </p>
+                    </div>
                 </div>
-                <div class="flex items-center gap-2">
+
+                <!-- Tombol Aksi Desktop Saja (Di mobile, tombol simpan berada di bottom floating bar) -->
+                <div class="hidden md:flex items-center gap-2 shrink-0">
                     <button
                         type="button"
                         @click="submit"
@@ -219,7 +230,7 @@ function getShiftInfo(shiftKey) {
                         <Save class="w-4 h-4" />
                         <span>{{ form.processing ? 'Menyimpan...' : 'Simpan Perubahan' }}</span>
                     </button>
-                    <Link href="/reports" class="btn-secondary text-xs flex items-center gap-1.5">
+                    <Link href="/reports" class="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3">
                         <ArrowLeft class="w-4 h-4" />
                         <span>Kembali ke Indeks</span>
                     </Link>
@@ -496,23 +507,71 @@ function getShiftInfo(shiftKey) {
                         </div>
 
                         <!-- Status Akhir Batch Shift Ini -->
-                        <div class="pt-2 border-t border-slate-100 dark:border-slate-800">
-                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">
+                        <div class="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                                 Status Batch Setelah Shift Ini Selesai:
                             </label>
-                            <div class="flex items-center gap-4">
-                                <label class="inline-flex items-center gap-2 cursor-pointer">
-                                    <input type="radio" value="OPEN" v-model="form.batch_status" class="text-indigo-600 focus:ring-indigo-500" />
-                                    <span class="text-sm font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-3 py-1 rounded-md border border-amber-200 dark:border-amber-800">
-                                        ● Tetap OPEN (Lanjut Shift Berikutnya)
-                                    </span>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <!-- Opsi 1: Tetap OPEN -->
+                                <label
+                                    :class="[
+                                        'relative flex items-start gap-3 p-3.5 rounded-xl border transition-all cursor-pointer select-none',
+                                        form.batch_status === 'OPEN'
+                                            ? 'bg-amber-50/80 dark:bg-amber-950/40 border-amber-400 dark:border-amber-600 ring-2 ring-amber-400/30 shadow-xs'
+                                            : 'bg-white dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                                    ]"
+                                >
+                                    <input
+                                        type="radio"
+                                        value="OPEN"
+                                        v-model="form.batch_status"
+                                        class="mt-0.5 text-amber-600 focus:ring-amber-500"
+                                    />
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex items-center gap-1.5">
+                                            <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                                            <span class="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">
+                                                Tetap OPEN
+                                            </span>
+                                            <span v-if="form.batch_status === 'OPEN'" class="ml-auto text-3xs font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-200/70 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200">
+                                                Aktif
+                                            </span>
+                                        </div>
+                                        <p class="text-2xs text-slate-500 dark:text-slate-400 mt-1 leading-normal">
+                                            Batch belum selesai, akan dilanjutkan pada shift berikutnya.
+                                        </p>
+                                    </div>
                                 </label>
 
-                                <label class="inline-flex items-center gap-2 cursor-pointer">
-                                    <input type="radio" value="CLOSE" v-model="form.batch_status" class="text-indigo-600 focus:ring-indigo-500" />
-                                    <span class="text-sm font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1 rounded-md border border-emerald-200 dark:border-emerald-800">
-                                        ✓ CLOSE (Batch Selesai Tuntas - Hitung Yield)
-                                    </span>
+                                <!-- Opsi 2: Selesai CLOSE -->
+                                <label
+                                    :class="[
+                                        'relative flex items-start gap-3 p-3.5 rounded-xl border transition-all cursor-pointer select-none',
+                                        form.batch_status === 'CLOSE'
+                                            ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-500 dark:border-emerald-600 ring-2 ring-emerald-500/30 shadow-xs'
+                                            : 'bg-white dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                                    ]"
+                                >
+                                    <input
+                                        type="radio"
+                                        value="CLOSE"
+                                        v-model="form.batch_status"
+                                        class="mt-0.5 text-emerald-600 focus:ring-emerald-500"
+                                    />
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex items-center gap-1.5">
+                                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                            <span class="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">
+                                                CLOSE Selesai Tuntas
+                                            </span>
+                                            <span v-if="form.batch_status === 'CLOSE'" class="ml-auto text-3xs font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-200/70 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
+                                                Aktif
+                                            </span>
+                                        </div>
+                                        <p class="text-2xs text-slate-500 dark:text-slate-400 mt-1 leading-normal">
+                                            Pengerjaan tuntas di shift ini & finalisasi kalkulasi yield batch.
+                                        </p>
+                                    </div>
                                 </label>
                             </div>
                         </div>
