@@ -265,7 +265,7 @@ function closeMobileDrawer() {
                         :class="[
                             'flex items-center rounded-xl font-semibold text-xs md:text-sm transition group',
                             isSidebarOpen ? 'gap-3 px-3 py-2.5 justify-start' : 'p-2.5 justify-center',
-                            $page.url === '/reports'
+                            ($page.url.startsWith('/reports') && !$page.url.startsWith('/reports/create'))
                                 ? 'bg-indigo-600 text-white shadow-sm'
                                 : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80'
                         ]"

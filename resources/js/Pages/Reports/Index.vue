@@ -4,7 +4,7 @@ import { router, Link } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import CardMetric from '@/Components/Common/CardMetric.vue';
 import BadgeStatus from '@/Components/Common/BadgeStatus.vue';
-import { ClipboardList, Printer, Plus, FileText } from 'lucide-vue-next';
+import { ClipboardList, Printer, Plus, FileText, Filter, ChevronDown } from 'lucide-vue-next';
 
 const props = defineProps({
     items: Object,
@@ -12,6 +12,89 @@ const props = defineProps({
     filters: Object,
     plants: Array,
     products: Array,
+});
+
+/**
+ * Aturan jam kerja shift pabrik
+ */
+function getShiftInfo(shiftKey) {
+    const map = {
+        shift_1: { name: 'Shift 1', hours: '07:00 - 15:30', badge: 'Pagi' },
+        shift_2: { name: 'Shift 2', hours: '15:30 - 23:30', badge: 'Sore' },
+        shift_3: { name: 'Shift 3', hours: '23:30 - 07:00', badge: 'Malam' },
+        middle: { name: 'Middle', hours: 'Fleksibel', badge: 'Middle' },
+    };
+    return map[shiftKey] || {
+        name: shiftKey ? shiftKey.replace('_', ' ').toUpperCase() : 'Shift 1',
+        hours: '07:00 - 15:30',
+        badge: 'Shift',
+    };
+}
+
+/**
+ * Format string tanggal YYYY-MM-DD atau ISO ke format Indonesia yang rapi (D MMM YYYY)
+ */
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const raw = String(dateStr).split('T')[0];
+    const parts = raw.split('-');
+    if (parts.length === 3) {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        const year = parts[0];
+        const monthIndex = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        return `${day} ${months[monthIndex]} ${year}`;
+    }
+    return raw;
+}
+
+// Form Filter State (Dideklarasikan di awal agar tidak memicu Temporal Dead Zone)
+const formFilter = reactive({
+    process_type: props.filters?.process_type || '',
+    shift: props.filters?.shift || '',
+    plant_id: props.filters?.plant_id || '',
+    product_id: props.filters?.product_id || '',
+    batch_status: props.filters?.batch_status || '',
+    time_status: props.filters?.time_status || '',
+    period_preset: props.filters?.period_preset || 'this_month',
+    start_date: props.filters?.start_date || '',
+    end_date: props.filters?.end_date || '',
+});
+
+// State Filter Accordion di Mobile
+const isFilterOpenMobile = ref(false);
+
+const activeFilterCount = computed(() => {
+    let count = 0;
+    if (formFilter.shift) count++;
+    if (formFilter.plant_id) count++;
+    if (formFilter.product_id) count++;
+    if (formFilter.batch_status) count++;
+    if (formFilter.time_status) count++;
+    if (formFilter.start_date) count++;
+    if (formFilter.end_date) count++;
+    return count;
+});
+
+const activeFilterSummary = computed(() => {
+    const parts = [];
+    if (formFilter.shift) {
+        parts.push(getShiftInfo(formFilter.shift).name);
+    }
+    if (formFilter.plant_id && props.plants) {
+        const pl = props.plants.find(p => String(p.id) === String(formFilter.plant_id));
+        if (pl) parts.push(pl.name);
+    }
+    if (formFilter.batch_status) {
+        parts.push(formFilter.batch_status);
+    }
+    if (formFilter.time_status) {
+        parts.push('390m');
+    }
+    if (formFilter.start_date || formFilter.end_date) {
+        parts.push('Tanggal');
+    }
+    return parts.length > 0 ? parts.join(' • ') : '';
 });
 
 // State Multi-Select Checkbox untuk Konsolidasi BSTB Shift (Cara 2)
@@ -26,7 +109,7 @@ function toggleSelectAll() {
     if (isAllSelected.value) {
         selectedItemIds.value = [];
     } else {
-        selectedItemIds.value = props.items.data.map(it => it.id);
+        selectedItemIds.value = (props.items?.data || []).map(it => it.id);
     }
 }
 
@@ -43,18 +126,6 @@ function printCurrentShiftBstb() {
     if (formFilter.plant_id) params.append('plant_id', formFilter.plant_id);
     router.visit(`/reports/bstb-shift?${params.toString()}`);
 }
-
-const formFilter = reactive({
-    process_type: props.filters?.process_type || '',
-    shift: props.filters?.shift || '',
-    plant_id: props.filters?.plant_id || '',
-    product_id: props.filters?.product_id || '',
-    batch_status: props.filters?.batch_status || '',
-    time_status: props.filters?.time_status || '',
-    period_preset: props.filters?.period_preset || 'this_month',
-    start_date: props.filters?.start_date || '',
-    end_date: props.filters?.end_date || '',
-});
 
 function applyFilter() {
     router.get('/reports', formFilter, {
@@ -92,7 +163,6 @@ function handlePresetChange() {
         formFilter.end_date = `${y}-${m}-${d}`;
     } else if (formFilter.period_preset === 'this_month') {
         formFilter.start_date = `${y}-${m}-01`;
-        // Hari terakhir bulan
         const lastDay = new Date(y, today.getMonth() + 1, 0).getDate();
         formFilter.end_date = `${y}-${m}-${lastDay}`;
     }
@@ -102,82 +172,63 @@ function handlePresetChange() {
 function printTable() {
     window.print();
 }
-
-/**
- * Format string tanggal YYYY-MM-DD atau ISO ke format Indonesia yang rapi (D MMM YYYY)
- */
-function formatDate(dateStr) {
-    if (!dateStr) return '-';
-    const raw = String(dateStr).split('T')[0];
-    const parts = raw.split('-');
-    if (parts.length === 3) {
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-        const year = parts[0];
-        const monthIndex = parseInt(parts[1], 10) - 1;
-        const day = parseInt(parts[2], 10);
-        return `${day} ${months[monthIndex]} ${year}`;
-    }
-    return raw;
-}
-
-/**
- * Aturan jam kerja shift pabrik
- */
-function getShiftInfo(shiftKey) {
-    const map = {
-        shift_1: { name: 'Shift 1', hours: '07:00 - 15:30', badge: 'Pagi' },
-        shift_2: { name: 'Shift 2', hours: '15:30 - 23:30', badge: 'Sore' },
-        shift_3: { name: 'Shift 3', hours: '23:30 - 07:00', badge: 'Malam' },
-        middle: { name: 'Middle', hours: 'Fleksibel', badge: 'Middle' },
-    };
-    return map[shiftKey] || {
-        name: shiftKey ? shiftKey.replace('_', ' ').toUpperCase() : 'Shift 1',
-        hours: '07:00 - 15:30',
-        badge: 'Shift',
-    };
-}
 </script>
 
 <template>
     <AppLayout>
-        <div class="space-y-6">
-            <!-- Header Judul & Tombol Aksi Utama -->
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
-                <div>
-                    <h1 class="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2">
-                        <ClipboardList class="w-6 h-6 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                        <span>Laporan Produksi Harian</span>
-                        <span class="text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
-                            {{ items.total }} Data
-                        </span>
-                    </h1>
-                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                        Monitoring pengerjaan per shift, pelacakan deviasi target, efisiensi OEE, dan yield per batch.
-                    </p>
-                </div>
+        <div class="space-y-4 sm:space-y-6">
+            <!-- Header Judul & Tombol Aksi Utama (Responsif) -->
+            <div class="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                    <!-- Icon, Judul & Counter Badge -->
+                    <div class="flex items-start sm:items-center gap-3">
+                        <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center shrink-0">
+                            <ClipboardList class="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                        </div>
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <h1 class="text-base sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+                                    Laporan Produksi
+                                </h1>
+                                <span class="text-[11px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800 shrink-0">
+                                    {{ items?.total || 0 }} Data
+                                </span>
+                            </div>
+                            <p class="text-2xs sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1 sm:line-clamp-none">
+                                Monitoring pengerjaan shift, efisiensi OEE, deviasi target & yield per batch.
+                            </p>
+                        </div>
+                    </div>
 
-                <div class="flex items-center gap-2 flex-wrap">
-                    <button
-                        v-if="$page.props.auth?.user?.can_print_bstb && (formFilter.shift || formFilter.start_date)"
-                        @click="printCurrentShiftBstb"
-                        class="btn-secondary text-xs flex items-center gap-1.5 border-indigo-200 text-indigo-700 dark:text-indigo-300 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
-                        title="Cetak BSTB gabungan untuk shift yang sedang difilter"
-                    >
-                        <FileText class="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                        <span>Cetak BSTB Shift</span>
-                    </button>
-                    <button
-                        v-if="$page.props.auth?.user?.can_print_bstb"
-                        @click="printTable"
-                        class="btn-secondary text-xs flex items-center gap-1.5"
-                    >
-                        <Printer class="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                        <span>Cetak Rekap</span>
-                    </button>
-                    <Link href="/reports/create" class="btn-primary text-xs flex items-center gap-1.5">
-                        <Plus class="w-4 h-4" />
-                        <span>Input Laporan Shift</span>
-                    </Link>
+                    <!-- Tombol Aksi Header -->
+                    <div class="flex items-center gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800">
+                        <button
+                            v-if="$page.props.auth?.user?.can_print_bstb && (formFilter.shift || formFilter.start_date)"
+                            @click="printCurrentShiftBstb"
+                            class="btn-secondary text-xs flex items-center justify-center gap-1.5 border-indigo-200 text-indigo-700 dark:text-indigo-300 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/40 hover:bg-indigo-100 py-2 px-3 flex-1 sm:flex-none"
+                            title="Cetak BSTB gabungan untuk shift yang sedang difilter"
+                        >
+                            <FileText class="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                            <span>BSTB Shift</span>
+                        </button>
+                        <button
+                            v-if="$page.props.auth?.user?.can_print_bstb"
+                            @click="printTable"
+                            class="btn-secondary text-xs flex items-center justify-center gap-1.5 py-2 px-3 flex-1 sm:flex-none"
+                            title="Cetak Rekap"
+                        >
+                            <Printer class="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                            <span class="hidden sm:inline">Cetak Rekap</span>
+                            <span class="sm:hidden">Rekap</span>
+                        </button>
+                        <Link
+                            href="/reports/create"
+                            class="btn-primary text-xs flex items-center justify-center gap-1.5 py-2 px-3.5 flex-1 sm:flex-none shadow-sm"
+                        >
+                            <Plus class="w-4 h-4" />
+                            <span>Input Laporan</span>
+                        </Link>
+                    </div>
                 </div>
             </div>
 
@@ -194,7 +245,7 @@ function getShiftInfo(shiftKey) {
                     :key="tab.id"
                     @click="selectTab(tab.id)"
                     :class="[
-                        'px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer',
+                        'px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer',
                         formFilter.process_type === tab.id
                             ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-sm'
                             : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
@@ -205,7 +256,7 @@ function getShiftInfo(shiftKey) {
             </div>
 
             <!-- STATISTIK RINGKASAN KPI SESUAI FILTER AKTIF -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
                 <CardMetric
                     title="Total Output Riil"
                     :value="Number(stats?.total_output || 0).toLocaleString('id-ID')"
@@ -239,22 +290,63 @@ function getShiftInfo(shiftKey) {
                 />
             </div>
 
-            <!-- FILTER MULTI-KRITERIA BAR -->
-            <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3 transition-colors">
-                <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                    <span class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                        🔍 Filter Data Laporan
-                    </span>
+            <!-- FILTER MULTI-KRITERIA BAR (RESPONSIF & ACCORDION DI MOBILE) -->
+            <div class="bg-white dark:bg-slate-900 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3 transition-colors">
+                <div class="flex items-center justify-between gap-2">
+                    <!-- Toggle Button untuk Mobile / Judul Statis untuk Desktop -->
                     <button
                         type="button"
-                        @click="resetFilter"
-                        class="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 cursor-pointer"
+                        @click="isFilterOpenMobile = !isFilterOpenMobile"
+                        class="flex-1 min-w-0 flex items-center gap-2 text-left cursor-pointer select-none md:cursor-default"
                     >
-                        🔄 Reset Filter
+                        <div class="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center shrink-0">
+                            <Filter class="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <span class="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200">
+                                    Filter Laporan
+                                </span>
+                                <span
+                                    v-if="activeFilterCount > 0"
+                                    class="px-1.5 py-0.5 rounded-full text-3xs font-mono font-bold bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 shrink-0"
+                                >
+                                    {{ activeFilterCount }} Aktif
+                                </span>
+                            </div>
+                            <p class="text-2xs text-slate-400 dark:text-slate-500 truncate md:hidden">
+                                {{ isFilterOpenMobile ? 'Klik untuk menutup pilihan' : (activeFilterSummary || 'Klik untuk menyaring data') }}
+                            </p>
+                        </div>
                     </button>
+
+                    <!-- Tombol Reset & Chevron Toggle Mobile -->
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <button
+                            v-if="activeFilterCount > 0"
+                            type="button"
+                            @click.stop="resetFilter"
+                            class="px-2.5 py-1 text-2xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 border border-rose-200 dark:border-rose-800/80 rounded-lg transition cursor-pointer"
+                        >
+                            Reset
+                        </button>
+
+                        <button
+                            type="button"
+                            @click="isFilterOpenMobile = !isFilterOpenMobile"
+                            class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 md:hidden transition cursor-pointer"
+                            aria-label="Toggle Filter"
+                        >
+                            <ChevronDown
+                                class="w-4 h-4 transition-transform duration-200"
+                                :class="{ 'rotate-180': isFilterOpenMobile }"
+                            />
+                        </button>
+                    </div>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                <!-- Input Pilihan Filter -->
+                <div :class="['grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 pt-3 md:pt-0 border-t md:border-t-0 border-slate-100 dark:border-slate-800', isFilterOpenMobile ? 'grid' : 'hidden md:grid']">
                     <!-- 1. Filter Shift -->
                     <div>
                         <label class="block text-2xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-1">Shift & Aturan Jam</label>
@@ -312,26 +404,38 @@ function getShiftInfo(shiftKey) {
                         </select>
                     </div>
 
-                    <!-- 6. Tanggal Awal -->
-                    <div>
-                        <label class="block text-2xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-1">Dari Tanggal</label>
-                        <input
-                            type="date"
-                            v-model="formFilter.start_date"
-                            @change="applyFilter"
-                            class="input-field text-xs py-1.5 font-mono"
-                        />
+                    <!-- 6 & 7. Tanggal Awal & Akhir (Berdampingan di Mobile) -->
+                    <div class="grid grid-cols-2 gap-2 sm:col-span-2 md:col-span-2 lg:col-span-2 md:contents">
+                        <div>
+                            <label class="block text-2xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-1">Dari Tanggal</label>
+                            <input
+                                type="date"
+                                v-model="formFilter.start_date"
+                                @change="applyFilter"
+                                class="input-field text-xs py-1.5 font-mono"
+                            />
+                        </div>
+
+                        <div>
+                            <label class="block text-2xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-1">Sampai Tanggal</label>
+                            <input
+                                type="date"
+                                v-model="formFilter.end_date"
+                                @change="applyFilter"
+                                class="input-field text-xs py-1.5 font-mono"
+                            />
+                        </div>
                     </div>
 
-                    <!-- 7. Tanggal Akhir -->
-                    <div>
-                        <label class="block text-2xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-1">Sampai Tanggal</label>
-                        <input
-                            type="date"
-                            v-model="formFilter.end_date"
-                            @change="applyFilter"
-                            class="input-field text-xs py-1.5 font-mono"
-                        />
+                    <!-- Tombol Tutup Pilihan Filter (Khusus Mobile saat terbuka) -->
+                    <div class="md:hidden pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <button
+                            type="button"
+                            @click="isFilterOpenMobile = false"
+                            class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition text-center cursor-pointer"
+                        >
+                            Tutup Pilihan Filter
+                        </button>
                     </div>
                 </div>
             </div>
@@ -369,8 +473,235 @@ function getShiftInfo(shiftKey) {
                 </div>
             </div>
 
-            <!-- TABEL DATA LAPORAN (HIGH DENSITY) -->
-            <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
+            <!-- TAMPILAN MOBILE: KARTU LAPORAN RESPONSIF (< MD) -->
+            <div class="md:hidden space-y-3">
+                <!-- Bar Indikator Pilih Semua (Khusus Admin jika ada data) -->
+                <div v-if="$page.props.auth?.user?.can_print_bstb && (items?.data || []).length > 0" class="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+                    <label class="flex items-center gap-2 font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            :checked="isAllSelected"
+                            @change="toggleSelectAll"
+                            class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span>Pilih Semua di Halaman Ini</span>
+                    </label>
+                    <span class="text-2xs font-mono text-slate-500 dark:text-slate-400">
+                        {{ selectedItemIds.length }} terpilih
+                    </span>
+                </div>
+
+                <!-- Empty State Mobile -->
+                <div v-if="!items?.data || items.data.length === 0" class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-8 text-center text-slate-400 dark:text-slate-500 shadow-sm">
+                    <span class="text-3xl block mb-2">🔍</span>
+                    Tidak ada data laporan yang cocok dengan filter yang dipilih.
+                </div>
+
+                <!-- Card List Mobile -->
+                <div
+                    v-for="item in (items?.data || [])"
+                    :key="'mobile-' + item.id"
+                    :class="[
+                        'bg-white dark:bg-slate-900 rounded-xl border shadow-sm p-4 space-y-3 transition-all',
+                        selectedItemIds.includes(item.id)
+                            ? 'border-indigo-400 dark:border-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/20 dark:bg-indigo-950/20'
+                            : 'border-slate-200 dark:border-slate-800'
+                    ]"
+                >
+                    <!-- 1. Header Kartu: Tanggal, Shift, Status Batch & Divisi -->
+                    <div class="flex items-start justify-between gap-2 pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                        <div class="flex items-start gap-2.5">
+                            <!-- Checkbox Multi-Select (Khusus Admin) -->
+                            <div v-if="$page.props.auth?.user?.can_print_bstb" class="pt-0.5">
+                                <input
+                                    type="checkbox"
+                                    :value="item.id"
+                                    v-model="selectedItemIds"
+                                    class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                />
+                            </div>
+
+                            <div>
+                                <div class="flex items-center gap-1.5 flex-wrap">
+                                    <span class="font-mono font-bold text-slate-900 dark:text-slate-100 text-xs">
+                                        {{ formatDate(item.report?.report_date) }}
+                                    </span>
+                                    <span class="text-3xs font-extrabold uppercase px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300">
+                                        {{ getShiftInfo(item.report?.shift).name }}
+                                    </span>
+                                </div>
+                                <span class="text-3xs text-slate-400 dark:text-slate-500 font-mono">
+                                    {{ getShiftInfo(item.report?.shift).hours }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Status Batch & Divisi Badge -->
+                        <div class="flex flex-col items-end gap-1 shrink-0">
+                            <BadgeStatus :status="item.batch_status" />
+                            <span :class="[
+                                'px-2 py-0.5 rounded text-3xs font-bold uppercase',
+                                item.report?.process_type === 'mixing' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300' : '',
+                                item.report?.process_type === 'filling' ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300' : '',
+                                item.report?.process_type === 'sekunder' ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300' : '',
+                            ]">
+                                {{ item.report?.process_type }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 2. Info Produk, Nomor Batch, Plant & Lini -->
+                    <div class="space-y-1">
+                        <h3 class="text-sm font-bold text-slate-900 dark:text-slate-100 leading-snug">
+                            {{ item.batch?.product?.name || 'Produk' }}
+                        </h3>
+                        <div class="flex items-center gap-2 flex-wrap text-2xs">
+                            <span class="font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800/60">
+                                {{ item.batch?.batch_number }}
+                            </span>
+                            <span class="text-slate-500 dark:text-slate-400 font-medium">
+                                {{ item.report?.plant?.name }} • {{ item.report?.line_name || item.machine?.name }} ({{ item.report?.pic_leader }})
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 3. Grid 2x2 Metrik Kinerja -->
+                    <div class="grid grid-cols-2 gap-2 p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800/80 text-xs">
+                        <!-- Box 1: Actual Output & Balance -->
+                        <div class="space-y-0.5">
+                            <span class="text-3xs uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 block">
+                                Actual Output
+                            </span>
+                            <div class="text-sm font-mono font-bold text-indigo-700 dark:text-indigo-400 tabular-nums">
+                                {{ Number(item.actual_output).toLocaleString('id-ID') }}
+                            </div>
+                            <div class="text-3xs font-mono font-bold tabular-nums">
+                                <span class="text-slate-400 font-normal">Bal: </span>
+                                <span :class="Number(item.balance_target) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'">
+                                    {{ Number(item.balance_target) >= 0 ? '+' : '' }}{{ Number(item.balance_target).toLocaleString('id-ID') }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Box 2: Skor OEE & Rating -->
+                        <div class="space-y-0.5">
+                            <span class="text-3xs uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 block">
+                                Skor OEE
+                            </span>
+                            <div class="text-sm font-mono font-bold tabular-nums" :class="[
+                                Number(item.oee_score) >= 0.85 ? 'text-emerald-600 dark:text-emerald-400' : (Number(item.oee_score) >= 0.70 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400')
+                            ]">
+                                {{ (Number(item.oee_score || 0) * 100).toFixed(1) }}%
+                            </div>
+                            <div class="text-3xs font-semibold">
+                                <span v-if="Number(item.oee_score) >= 0.85" class="text-emerald-600 dark:text-emerald-400">★ World Class</span>
+                                <span v-else-if="Number(item.oee_score) >= 0.70" class="text-amber-600 dark:text-amber-400">● Moderate</span>
+                                <span v-else class="text-rose-600 dark:text-rose-400">▲ Perlu Review</span>
+                            </div>
+                        </div>
+
+                        <!-- Box 3: Durasi Kerja & Downtime -->
+                        <div class="space-y-0.5 pt-1.5 border-t border-slate-200/60 dark:border-slate-700/60">
+                            <span class="text-3xs uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 block">
+                                Durasi & Downtime
+                            </span>
+                            <div class="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 tabular-nums">
+                                {{ item.duration_minutes }}m
+                                <span v-if="(item.downtime_planned_minutes + item.downtime_unplanned_minutes) > 0" class="text-rose-500 font-semibold">
+                                    + {{ item.downtime_planned_minutes + item.downtime_unplanned_minutes }}m DT
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Box 4: Cumulative Yield -->
+                        <div class="space-y-0.5 pt-1.5 border-t border-slate-200/60 dark:border-slate-700/60">
+                            <span class="text-3xs uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 block">
+                                Yield Batch
+                            </span>
+                            <div class="text-xs font-mono font-bold tabular-nums">
+                                <span
+                                    v-if="item.batch_status === 'CLOSE'"
+                                    :class="Number(item.cumulative_yield || item.batch?.final_yield || 0) >= 0.98 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'"
+                                >
+                                    {{ (Number(item.cumulative_yield || item.batch?.final_yield || 0) * 100).toFixed(1) }}%
+                                </span>
+                                <span v-else class="text-slate-400 dark:text-slate-500 text-3xs font-medium">
+                                    — (Batch OPEN)
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4. Indikator Kepatuhan Shift 390 Menit -->
+                    <div class="flex items-center justify-between px-2.5 py-1.5 bg-slate-100/70 dark:bg-slate-800/40 rounded-lg text-2xs">
+                        <span class="text-3xs uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider">
+                            Shift 390 Menit:
+                        </span>
+
+                        <div>
+                            <!-- Belum Input Waktu / DT -->
+                            <span
+                                v-if="item.shift_tracking?.is_unfilled"
+                                class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-3xs font-extrabold uppercase bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-800 animate-pulse"
+                            >
+                                ⚠️ Belum Input (0m)
+                            </span>
+
+                            <!-- Pas 390 Menit -->
+                            <span
+                                v-else-if="item.shift_tracking?.status === 'exact'"
+                                class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-3xs font-bold uppercase bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
+                            >
+                                ✓ Pas 390m (Shift: {{ item.shift_tracking.group_total }}m)
+                            </span>
+
+                            <!-- Kurang dari 390 Menit -->
+                            <span
+                                v-else-if="item.shift_tracking?.status === 'under'"
+                                class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-3xs font-bold uppercase bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
+                            >
+                                ⚠️ Kurang ({{ item.shift_tracking.diff }}m) • {{ item.shift_tracking.group_total }}/390m
+                            </span>
+
+                            <!-- Lebih dari 390 Menit -->
+                            <span
+                                v-else-if="item.shift_tracking?.status === 'over'"
+                                class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-3xs font-bold uppercase bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-300 dark:border-purple-800"
+                            >
+                                ⚠️ Lebih (+{{ item.shift_tracking.diff }}m) • {{ item.shift_tracking.group_total }}/390m
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 5. Tombol Aksi (Tumb-Friendly Touch Targets) -->
+                    <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                        <Link
+                            :href="`/reports/${item.report_id}/edit?item_id=${item.id}`"
+                            class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 text-amber-700 dark:text-amber-300 hover:bg-amber-100 transition active:scale-[0.98]"
+                        >
+                            <span>✏️ Edit Laporan</span>
+                        </Link>
+
+                        <Link
+                            :href="`/reports/${item.report_id}`"
+                            class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/80 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 transition active:scale-[0.98]"
+                        >
+                            <span>📄 Detail</span>
+                        </Link>
+
+                        <Link
+                            v-if="$page.props.auth?.user?.can_print_bstb"
+                            :href="`/reports/${item.report_id}/bstb`"
+                            class="col-span-2 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 transition active:scale-[0.98]"
+                        >
+                            <span>🖨️ Cetak BSTB Shift</span>
+                        </Link>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAMPILAN DESKTOP: TABEL DATA LAPORAN (HIGH DENSITY) (MD KE ATAS) -->
+            <div class="hidden md:block bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold uppercase tracking-wider">
@@ -399,7 +730,7 @@ function getShiftInfo(shiftKey) {
                         </thead>
                         <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
                             <tr
-                                v-for="item in items.data"
+                                v-for="item in (items?.data || [])"
                                 :key="item.id"
                                 :class="[
                                     'hover:bg-slate-50 dark:hover:bg-slate-800/50 transition',
@@ -548,7 +879,7 @@ function getShiftInfo(shiftKey) {
                                     </span>
                                 </td>
 
-                                <!-- Cumulative Yield (Poin 1: Hanya Dihitung & Difinalkan Ketika Batch CLOSE) -->
+                                <!-- Cumulative Yield -->
                                 <td class="py-3 px-3 text-right font-mono font-bold tabular-nums whitespace-nowrap">
                                     <span
                                         v-if="item.batch_status === 'CLOSE'"
@@ -597,7 +928,7 @@ function getShiftInfo(shiftKey) {
                                 </td>
                             </tr>
 
-                            <tr v-if="items.data.length === 0">
+                            <tr v-if="!items?.data || items.data.length === 0">
                                 <td :colspan="$page.props.auth?.user?.can_print_bstb ? 12 : 11" class="py-12 text-center text-slate-400 dark:text-slate-500">
                                     <span class="text-3xl block mb-2">🔍</span>
                                     Tidak ada data laporan yang cocok dengan filter yang dipilih.
@@ -606,26 +937,33 @@ function getShiftInfo(shiftKey) {
                         </tbody>
                     </table>
                 </div>
+            </div>
 
-                <!-- Pagination Footer -->
-                <div v-if="items.links && items.links.length > 3" class="bg-slate-50 dark:bg-slate-900 px-4 py-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
-                    <span class="text-slate-500 dark:text-slate-400 font-mono">
-                        Menampilkan {{ items.from || 0 }} - {{ items.to || 0 }} dari {{ items.total }} data
-                    </span>
+            <!-- PAGINATION FOOTER (SHARED UNTUK DESKTOP & MOBILE) -->
+            <div v-if="items?.links && items.links.length > 3" class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                <span class="text-slate-500 dark:text-slate-400 font-mono text-center sm:text-left">
+                    Menampilkan {{ items?.from || 0 }} - {{ items?.to || 0 }} dari {{ items?.total || 0 }} data
+                </span>
 
-                    <div class="flex items-center gap-1">
+                <div class="flex items-center gap-1 flex-wrap justify-center">
+                    <template v-for="(link, idx) in (items?.links || [])" :key="idx">
                         <Link
-                            v-for="(link, idx) in items.links"
-                            :key="idx"
-                            :href="link.url || '#'"
+                            v-if="link.url"
+                            :href="link.url"
+                            preserve-scroll
+                            preserve-state
                             :class="[
-                                'px-2.5 py-1 rounded font-mono font-semibold transition',
-                                link.active ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700',
-                                !link.url ? 'opacity-40 pointer-events-none' : ''
+                                'px-3 py-1.5 rounded font-mono font-semibold transition text-xs cursor-pointer',
+                                link.active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
                             ]"
                             v-html="link.label"
                         />
-                    </div>
+                        <span
+                            v-else
+                            class="px-3 py-1.5 rounded font-mono font-semibold text-xs opacity-40 pointer-events-none bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700"
+                            v-html="link.label"
+                        />
+                    </template>
                 </div>
             </div>
         </div>
