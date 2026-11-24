@@ -21,8 +21,10 @@ jobs:
       - name: Jalankan Perintah Artisan di Docker
         run: |
           cd /home/herbatech-server/deployment
-            docker compose exec -T produksi_app php artisan migrate --force
-            docker compose exec -T produksi_app php artisan optimize:clear
-            docker compose exec -T produksi_app php artisan config:cache
-            docker compose exec -T produksi_app php artisan route:cache
-            docker compose exec -T produksi_app php artisan view:cache
+          docker compose exec -T produksi_app npm install
+          docker compose exec -T produksi_app npm run build
+          docker compose exec -T produksi_app php artisan migrate --force
+          docker compose exec -T produksi_app php artisan optimize:clear
+          docker compose exec -T produksi_app php artisan config:cache
+          docker compose exec -T produksi_app php artisan route:cache
+          docker compose exec -T produksi_app php artisan view:cache
