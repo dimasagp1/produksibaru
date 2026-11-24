@@ -566,9 +566,9 @@ class ProductionReportWorkflowTest extends TestCase
     }
 
     /**
-     * Uji Redirect dan Alert tetap HTTP pada akses lokal 127.0.0.1:8001 (Tidak terpaksa HTTPS)
+     * Uji Redirect dan Alert tetap HTTP pada akses lokal 127.0.0.1:8000 (Tidak terpaksa HTTPS)
      */
-    public function test_redirect_and_alert_on_local_port_8001(): void
+    public function test_redirect_and_alert_on_local_port_8000(): void
     {
         $plant = Plant::first() ?? Plant::create(['plant_code' => 'PL-01', 'plant_name' => 'Pabrik 1']);
         $product = Product::first() ?? Product::create(['product_code' => 'PR-01', 'product_name' => 'Vitameal']);
@@ -581,8 +581,8 @@ class ProductionReportWorkflowTest extends TestCase
             'status' => 'OPEN',
         ]);
 
-        // POST dari 127.0.0.1:8001
-        $response = $this->withServerVariables(['HTTP_HOST' => '127.0.0.1:8001', 'HTTPS' => 'off'])
+        // POST dari 127.0.0.1:8000
+        $response = $this->withServerVariables(['HTTP_HOST' => '127.0.0.1:8000', 'HTTPS' => 'off'])
             ->post('/reports', [
                 'plant_id' => $plant->id,
                 'report_date' => '2026-02-02',
@@ -600,7 +600,8 @@ class ProductionReportWorkflowTest extends TestCase
             ]);
 
         $response->assertStatus(302);
-        $this->assertEquals('http://127.0.0.1:8001/reports', $response->headers->get('Location'));
+        $this->assertEquals(url('/reports'), $response->headers->get('Location'));
+        $this->assertStringStartsWith('http://127.0.0.1:8000/reports', $response->headers->get('Location'));
         $response->assertSessionHas('success');
     }
 
