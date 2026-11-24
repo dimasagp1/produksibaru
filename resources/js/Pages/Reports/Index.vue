@@ -4,7 +4,7 @@ import { router, Link } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import CardMetric from '@/Components/Common/CardMetric.vue';
 import BadgeStatus from '@/Components/Common/BadgeStatus.vue';
-import { ClipboardList, Printer, Plus, FileText, Filter, ChevronDown } from 'lucide-vue-next';
+import { ClipboardList, Printer, Plus, FileText, Filter, ChevronDown, X } from 'lucide-vue-next';
 
 const props = defineProps({
     items: Object,
@@ -231,34 +231,45 @@ function printTable() {
                         </div>
                     </div>
 
-                    <!-- Tombol Aksi Header -->
-                    <div class="flex items-center gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800">
-                        <button
-                            v-if="$page.props.auth?.user?.can_print_bstb && (formFilter.shift || formFilter.start_date)"
-                            @click="printCurrentShiftBstb"
-                            class="btn-secondary text-xs flex items-center justify-center gap-1.5 border-indigo-200 text-indigo-700 dark:text-indigo-300 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/40 hover:bg-indigo-100 py-2 px-3 flex-1 sm:flex-none"
-                            title="Cetak BSTB gabungan untuk shift yang sedang difilter"
-                        >
-                            <FileText class="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                            <span>BSTB Shift</span>
-                        </button>
-                        <button
-                            v-if="$page.props.auth?.user?.can_print_bstb"
-                            @click="printTable"
-                            class="btn-secondary text-xs flex items-center justify-center gap-1.5 py-2 px-3 flex-1 sm:flex-none"
-                            title="Cetak Rekap"
-                        >
-                            <Printer class="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                            <span class="hidden sm:inline">Cetak Rekap</span>
-                            <span class="sm:hidden">Rekap</span>
-                        </button>
+                    <!-- Tombol Aksi Header Responsif -->
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-2 pt-2.5 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800 w-full sm:w-auto">
+                        <!-- Tombol Utama: Input Laporan (Full Width & Menonjol di Mobile, Compact di Desktop) -->
                         <Link
                             href="/reports/create"
-                            class="btn-primary text-xs flex items-center justify-center gap-1.5 py-2 px-3.5 flex-1 sm:flex-none shadow-sm"
+                            class="btn-primary text-xs flex items-center justify-center gap-1.5 py-2.5 sm:py-2 px-3.5 w-full sm:w-auto order-1 sm:order-3 shadow-sm font-bold whitespace-nowrap active:scale-[0.99] transition cursor-pointer"
                         >
-                            <Plus class="w-4 h-4" />
+                            <Plus class="w-4 h-4 shrink-0" />
                             <span>Input Laporan</span>
                         </Link>
+
+                        <!-- Tombol Cetak / Ekspor (Hanya Muncul jika User Memiliki Hak Akses Cetak) -->
+                        <div
+                            v-if="$page.props.auth?.user?.can_print_bstb"
+                            class="grid grid-cols-2 sm:flex sm:items-center gap-2 order-2 sm:order-1 w-full sm:w-auto"
+                            :class="{ '!grid-cols-1': !(formFilter.shift || formFilter.start_date) }"
+                        >
+                            <button
+                                v-if="formFilter.shift || formFilter.start_date"
+                                type="button"
+                                @click="printCurrentShiftBstb"
+                                class="btn-secondary text-xs flex items-center justify-center gap-1.5 border-indigo-200 text-indigo-700 dark:text-indigo-300 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/40 hover:bg-indigo-100 py-2 px-3 whitespace-nowrap transition cursor-pointer"
+                                title="Cetak BSTB gabungan untuk shift yang sedang difilter"
+                            >
+                                <FileText class="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                                <span class="truncate">BSTB Shift</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                @click="printTable"
+                                class="btn-secondary text-xs flex items-center justify-center gap-1.5 py-2 px-3 whitespace-nowrap transition cursor-pointer"
+                                title="Cetak Rekap Laporan"
+                            >
+                                <Printer class="w-3.5 h-3.5 text-slate-600 dark:text-slate-400 shrink-0" />
+                                <span class="hidden sm:inline truncate">Cetak Rekap</span>
+                                <span class="sm:hidden truncate">Rekap</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -485,21 +496,24 @@ function printTable() {
                     </div>
                 </div>
 
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 w-full sm:w-auto pt-1 sm:pt-0">
                     <button
                         type="button"
                         @click="selectedItemIds = []"
-                        class="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition cursor-pointer"
+                        class="btn-secondary text-xs py-2 px-3 flex items-center justify-center gap-1 shrink-0 font-semibold text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
+                        title="Batalkan semua pilihan"
                     >
-                        Batal
+                        <X class="w-3.5 h-3.5 shrink-0" />
+                        <span>Batal</span>
                     </button>
                     <button
                         type="button"
                         @click="printConsolidatedBstb"
-                        class="btn-primary text-xs py-2 px-3.5 flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 shadow-sm cursor-pointer"
+                        class="btn-primary text-xs py-2 px-3.5 flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 shadow-sm font-bold whitespace-nowrap active:scale-[0.99] transition cursor-pointer"
                     >
-                        <Printer class="w-4 h-4" />
-                        <span>🖨️ Cetak BSTB Konsolidasi ({{ selectedItemIds.length }} Batch)</span>
+                        <Printer class="w-4 h-4 shrink-0" />
+                        <span class="hidden sm:inline">Cetak BSTB Konsolidasi ({{ selectedItemIds.length }} Batch)</span>
+                        <span class="sm:hidden truncate">Cetak BSTB ({{ selectedItemIds.length }} Batch)</span>
                     </button>
                 </div>
             </div>
