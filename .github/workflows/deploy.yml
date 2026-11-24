@@ -1,0 +1,28 @@
+name: Auto Deploy Produksi to Local Server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Tarik Kode Terbaru & Sinkronkan Izin
+        run: |
+          cd /home/herbatech-server/project-web/produksibaru
+          sudo /usr/bin/chown -R herbatech-server:www-data /home/herbatech-server/project-web/produksibaru
+          git reset --hard HEAD
+          git pull origin main
+          sudo /usr/bin/chmod -R 775 /home/herbatech-server/project-web/produksibaru/storage
+          sudo /usr/bin/chmod -R 775 /home/herbatech-server/project-web/produksibaru/bootstrap/cache
+
+      - name: Jalankan Perintah Artisan di Docker
+        run: |
+          cd /home/herbatech-server/deployment
+          docker compose exec -T NAMA_SERVICE_PRODUKSI php artisan migrate --force
+          docker compose exec -T NAMA_SERVICE_PRODUKSI php artisan optimize:clear
+          docker compose exec -T NAMA_SERVICE_PRODUKSI php artisan config:cache
+          docker compose exec -T NAMA_SERVICE_PRODUKSI php artisan route:cache
+          docker compose exec -T NAMA_SERVICE_PRODUKSI php artisan view:cache
