@@ -14,27 +14,41 @@ function printReport() {
 
 function formatDate(dateStr) {
     if (!dateStr) return '-';
-    const raw = String(dateStr).split('T')[0];
-    const parts = raw.split('-');
-    if (parts.length === 3) {
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-        const year = parts[0];
-        const monthIndex = parseInt(parts[1], 10) - 1;
-        const day = parseInt(parts[2], 10);
-        return `${day} ${months[monthIndex]} ${year}`;
+    try {
+        const raw = String(dateStr).split('T')[0];
+        const parts = raw.split('-');
+        if (parts.length === 3) {
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+            const year = parts[0];
+            const monthIndex = parseInt(parts[1], 10) - 1;
+            const day = parseInt(parts[2], 10);
+            if (months[monthIndex] && !isNaN(day)) {
+                return `${day} ${months[monthIndex]} ${year}`;
+            }
+        }
+        return raw;
+    } catch {
+        return String(dateStr || '-');
     }
-    return raw;
 }
 
 function getShiftInfo(shiftKey) {
+    if (!shiftKey) {
+        return { name: 'Shift 1', hours: '07:00 - 15:30' };
+    }
+    const raw = String(shiftKey).trim().toLowerCase();
     const map = {
         shift_1: { name: 'Shift 1', hours: '07:00 - 15:30' },
         shift_2: { name: 'Shift 2', hours: '15:30 - 23:30' },
         shift_3: { name: 'Shift 3', hours: '23:30 - 07:00' },
         middle: { name: 'Middle', hours: 'Fleksibel' },
+        '1': { name: 'Shift 1', hours: '07:00 - 15:30' },
+        '2': { name: 'Shift 2', hours: '15:30 - 23:30' },
+        '3': { name: 'Shift 3', hours: '23:30 - 07:00' },
     };
-    return map[shiftKey] || {
-        name: shiftKey ? shiftKey.replace('_', ' ').toUpperCase() : 'Shift 1',
+    if (map[raw]) return map[raw];
+    return {
+        name: raw ? raw.replace(/_/g, ' ').toUpperCase() : 'Shift 1',
         hours: '07:00 - 15:30',
     };
 }

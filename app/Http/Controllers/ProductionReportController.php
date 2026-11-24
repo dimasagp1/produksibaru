@@ -167,8 +167,15 @@ class ProductionReportController extends Controller
         // Anotasi data item dengan status kelengkapan 390 menit
         $items->through(function ($item) use ($shiftTotals) {
             $report = $item->report;
+            $reportDate = $report?->report_date;
+            if ($reportDate instanceof \DateTimeInterface) {
+                $reportDate = $reportDate->format('Y-m-d');
+            } elseif (is_string($reportDate) && str_contains($reportDate, 'T')) {
+                $reportDate = explode('T', $reportDate)[0];
+            }
+
             $key = implode('|', [
-                $report?->report_date,
+                $reportDate,
                 $report?->shift,
                 $report?->plant_id,
                 $report?->process_type,

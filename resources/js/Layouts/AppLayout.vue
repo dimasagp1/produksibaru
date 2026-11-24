@@ -518,8 +518,8 @@ function closeMobileDrawer() {
             </main>
         </div>
 
-        <!-- FLOATING TOAST NOTIFICATION (POJOK KANAN ATAS) -->
-        <Teleport to="body">
+        <!-- FLOATING TOAST NOTIFICATION (POJOK KANAN ATAS - DIRECT FIXED POSITION WITHOUT RISKY TELEPORT) -->
+        <div class="fixed top-5 right-5 z-50 pointer-events-none space-y-2">
             <!-- Toast Success -->
             <Transition
                 enter-active-class="transform transition ease-out duration-300"
@@ -531,7 +531,7 @@ function closeMobileDrawer() {
             >
                 <div
                     v-if="$page.props.flash?.success && !flashDismissed"
-                    class="fixed top-5 right-5 z-50 max-w-sm sm:max-w-md w-full bg-emerald-600 text-white p-4 rounded-2xl shadow-2xl flex items-start gap-3 border border-emerald-400/40 backdrop-blur-md"
+                    class="pointer-events-auto max-w-sm sm:max-w-md w-full bg-emerald-600 text-white p-4 rounded-2xl shadow-2xl flex items-start gap-3 border border-emerald-400/40 backdrop-blur-md"
                 >
                     <CheckCircle2 class="w-6 h-6 text-white shrink-0 mt-0.5" />
                     <div class="flex-1 min-w-0">
@@ -560,7 +560,7 @@ function closeMobileDrawer() {
             >
                 <div
                     v-if="$page.props.flash?.error && !flashDismissed"
-                    class="fixed top-5 right-5 z-50 max-w-sm sm:max-w-md w-full bg-rose-600 text-white p-4 rounded-2xl shadow-2xl flex items-start gap-3 border border-rose-400/40 backdrop-blur-md"
+                    class="pointer-events-auto max-w-sm sm:max-w-md w-full bg-rose-600 text-white p-4 rounded-2xl shadow-2xl flex items-start gap-3 border border-rose-400/40 backdrop-blur-md"
                 >
                     <AlertCircle class="w-6 h-6 text-white shrink-0 mt-0.5" />
                     <div class="flex-1 min-w-0">
@@ -577,10 +577,10 @@ function closeMobileDrawer() {
                     </button>
                 </div>
             </Transition>
-        </Teleport>
+        </div>
 
-        <!-- POPUP MODAL LOGOUT USER -->
-        <Teleport to="body">
+        <!-- POPUP MODAL LOGOUT USER (HANYA DITELEPORT SAAT MODAL AKTIF) -->
+        <Teleport to="body" v-if="isLogoutModalOpen">
             <Transition
                 enter-active-class="transition duration-200 ease-out"
                 enter-from-class="opacity-0 scale-95"
@@ -590,7 +590,6 @@ function closeMobileDrawer() {
                 leave-to-class="opacity-0 scale-95"
             >
                 <div
-                    v-if="isLogoutModalOpen"
                     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs"
                     @click.self="closeLogoutModal"
                 >

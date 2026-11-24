@@ -15,17 +15,25 @@ const props = defineProps({
 });
 
 /**
- * Aturan jam kerja shift pabrik
+ * Aturan jam kerja shift pabrik (Defensive mapping: mendukung string shift_1, numeric 1, undefined, null)
  */
 function getShiftInfo(shiftKey) {
+    if (!shiftKey) {
+        return { name: 'Shift 1', hours: '07:00 - 15:30', badge: 'Pagi' };
+    }
+    const raw = String(shiftKey).trim().toLowerCase();
     const map = {
         shift_1: { name: 'Shift 1', hours: '07:00 - 15:30', badge: 'Pagi' },
         shift_2: { name: 'Shift 2', hours: '15:30 - 23:30', badge: 'Sore' },
         shift_3: { name: 'Shift 3', hours: '23:30 - 07:00', badge: 'Malam' },
         middle: { name: 'Middle', hours: 'Fleksibel', badge: 'Middle' },
+        '1': { name: 'Shift 1', hours: '07:00 - 15:30', badge: 'Pagi' },
+        '2': { name: 'Shift 2', hours: '15:30 - 23:30', badge: 'Sore' },
+        '3': { name: 'Shift 3', hours: '23:30 - 07:00', badge: 'Malam' },
     };
-    return map[shiftKey] || {
-        name: shiftKey ? shiftKey.replace('_', ' ').toUpperCase() : 'Shift 1',
+    if (map[raw]) return map[raw];
+    return {
+        name: raw ? raw.replace(/_/g, ' ').toUpperCase() : 'Shift 1',
         hours: '07:00 - 15:30',
         badge: 'Shift',
     };
@@ -36,16 +44,22 @@ function getShiftInfo(shiftKey) {
  */
 function formatDate(dateStr) {
     if (!dateStr) return '-';
-    const raw = String(dateStr).split('T')[0];
-    const parts = raw.split('-');
-    if (parts.length === 3) {
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-        const year = parts[0];
-        const monthIndex = parseInt(parts[1], 10) - 1;
-        const day = parseInt(parts[2], 10);
-        return `${day} ${months[monthIndex]} ${year}`;
+    try {
+        const raw = String(dateStr).split('T')[0];
+        const parts = raw.split('-');
+        if (parts.length === 3) {
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+            const year = parts[0];
+            const monthIndex = parseInt(parts[1], 10) - 1;
+            const day = parseInt(parts[2], 10);
+            if (months[monthIndex] && !isNaN(day)) {
+                return `${day} ${months[monthIndex]} ${year}`;
+            }
+        }
+        return raw;
+    } catch {
+        return String(dateStr || '-');
     }
-    return raw;
 }
 
 // Form Filter State (Dideklarasikan di awal agar tidak memicu Temporal Dead Zone)
@@ -81,7 +95,7 @@ const activeFilterSummary = computed(() => {
     if (formFilter.shift) {
         parts.push(getShiftInfo(formFilter.shift).name);
     }
-    if (formFilter.plant_id && props.plants) {
+    if (formFilter.plant_id && Array.isArray(props.plants)) {
         const pl = props.plants.find(p => String(p.id) === String(formFilter.plant_id));
         if (pl) parts.push(pl.name);
     }
@@ -130,8 +144,9 @@ function printCurrentShiftBstb() {
 function formatPaginationUrl(rawUrl) {
     if (!rawUrl) return null;
     try {
-        const parsed = new URL(rawUrl, window.location.origin);
-        return parsed.pathname + parsed.search;
+        const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'http://127.0.0.1:8000';
+        const parsed = new URL(rawUrl, origin);
+        return (parsed.pathname + parsed.search) || rawUrl;
     } catch {
         return rawUrl;
     }
@@ -622,9 +637,9 @@ function printTable() {
                                 Durasi & Downtime
                             </span>
                             <div class="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 tabular-nums">
-                                {{ item.duration_minutes }}m
-                                <span v-if="(item.downtime_planned_minutes + item.downtime_unplanned_minutes) > 0" class="text-rose-500 font-semibold">
-                                    + {{ item.downtime_planned_minutes + item.downtime_unplanned_minutes }}m DT
+                                {{ item.duration_minutes ?? 0 }}m
+                                <span v-if="((item.downtime_planned_minutes || 0) + (item.downtime_unplanned_minutes || 0)) > 0" class="text-rose-500 font-semibold">
+                                    + {{ (item.downtime_planned_minutes || 0) + (item.downtime_unplanned_minutes || 0) }}m DT
                                 </span>
                             </div>
                         </div>
@@ -668,7 +683,7 @@ function printTable() {
                                 v-else-if="item.shift_tracking?.status === 'exact'"
                                 class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-3xs font-bold uppercase bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
                             >
-                                ✓ Pas 390m (Shift: {{ item.shift_tracking.group_total }}m)
+                                ✓ Pas 390m (Shift: {{ item.shift_tracking?.group_total ?? 0 }}m)
                             </span>
 
                             <!-- Kurang dari 390 Menit -->
@@ -676,7 +691,7 @@ function printTable() {
                                 v-else-if="item.shift_tracking?.status === 'under'"
                                 class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-3xs font-bold uppercase bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
                             >
-                                ⚠️ Kurang ({{ item.shift_tracking.diff }}m) • {{ item.shift_tracking.group_total }}/390m
+                                ⚠️ Kurang ({{ item.shift_tracking?.diff ?? 0 }}m) • {{ item.shift_tracking?.group_total ?? 0 }}/390m
                             </span>
 
                             <!-- Lebih dari 390 Menit -->
@@ -684,7 +699,7 @@ function printTable() {
                                 v-else-if="item.shift_tracking?.status === 'over'"
                                 class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-3xs font-bold uppercase bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-300 dark:border-purple-800"
                             >
-                                ⚠️ Lebih (+{{ item.shift_tracking.diff }}m) • {{ item.shift_tracking.group_total }}/390m
+                                ⚠️ Lebih (+{{ item.shift_tracking?.diff ?? 0 }}m) • {{ item.shift_tracking?.group_total ?? 0 }}/390m
                             </span>
                         </div>
                     </div>
@@ -692,14 +707,14 @@ function printTable() {
                     <!-- 5. Tombol Aksi (Tumb-Friendly Touch Targets) -->
                     <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
                         <Link
-                            :href="`/reports/${item.report_id}/edit?item_id=${item.id}`"
+                            :href="`/reports/${item.report_id || item.report?.id}/edit?item_id=${item.id}`"
                             class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 text-amber-700 dark:text-amber-300 hover:bg-amber-100 transition active:scale-[0.98]"
                         >
                             <span>✏️ Edit Laporan</span>
                         </Link>
 
                         <Link
-                            :href="`/reports/${item.report_id}`"
+                            :href="`/reports/${item.report_id || item.report?.id}`"
                             class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/80 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 transition active:scale-[0.98]"
                         >
                             <span>📄 Detail</span>
@@ -707,7 +722,7 @@ function printTable() {
 
                         <Link
                             v-if="$page.props.auth?.user?.can_print_bstb"
-                            :href="`/reports/${item.report_id}/bstb`"
+                            :href="`/reports/${item.report_id || item.report?.id}/bstb`"
                             class="col-span-2 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 transition active:scale-[0.98]"
                         >
                             <span>🖨️ Cetak BSTB Shift</span>
@@ -813,9 +828,9 @@ function printTable() {
                                 <!-- Durasi & Status Shift (390m) -->
                                 <td class="py-3 px-3 text-right font-mono whitespace-nowrap">
                                     <div class="font-bold text-xs tabular-nums text-slate-800 dark:text-slate-200">
-                                        {{ item.duration_minutes }}m
-                                        <span v-if="(item.downtime_planned_minutes + item.downtime_unplanned_minutes) > 0" class="text-2xs text-slate-500 font-normal">
-                                            + {{ item.downtime_planned_minutes + item.downtime_unplanned_minutes }}m DT
+                                        {{ item.duration_minutes ?? 0 }}m
+                                        <span v-if="((item.downtime_planned_minutes || 0) + (item.downtime_unplanned_minutes || 0)) > 0" class="text-2xs text-slate-500 font-normal">
+                                            + {{ (item.downtime_planned_minutes || 0) + (item.downtime_unplanned_minutes || 0) }}m DT
                                         </span>
                                     </div>
 
@@ -839,7 +854,7 @@ function printTable() {
                                                 ✓ Pas 390m
                                             </span>
                                             <span class="text-3xs text-emerald-600 dark:text-emerald-400 font-medium">
-                                                Shift: {{ item.shift_tracking.group_total }}m
+                                                Shift: {{ item.shift_tracking?.group_total ?? 0 }}m
                                             </span>
                                         </template>
 
@@ -847,14 +862,14 @@ function printTable() {
                                         <template v-else-if="item.shift_tracking?.status === 'under'">
                                             <span
                                                 class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-3xs font-bold uppercase bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
-                                                :title="`Total shift baru ${item.shift_tracking.group_total}m, kurang ${Math.abs(item.shift_tracking.diff)}m dari standar 390m`"
+                                                :title="`Total shift baru ${item.shift_tracking?.group_total ?? 0}m, kurang ${Math.abs(item.shift_tracking?.diff || 0)}m dari standar 390m`"
                                             >
-                                                ⚠️ Kurang ({{ item.shift_tracking.diff }}m)
+                                                ⚠️ Kurang ({{ item.shift_tracking?.diff ?? 0 }}m)
                                             </span>
                                             <span class="text-3xs text-amber-600 dark:text-amber-400 font-mono">
-                                                {{ item.shift_tracking.group_total }}/390m
+                                                {{ item.shift_tracking?.group_total ?? 0 }}/390m
                                             </span>
-                                            <span v-if="item.shift_tracking.item_dt === 0" class="text-3xs text-rose-500 font-bold">
+                                            <span v-if="item.shift_tracking?.item_dt === 0" class="text-3xs text-rose-500 font-bold">
                                                 DT: 0m
                                             </span>
                                         </template>
@@ -863,12 +878,12 @@ function printTable() {
                                         <template v-else-if="item.shift_tracking?.status === 'over'">
                                             <span
                                                 class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-3xs font-bold uppercase bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-300 dark:border-purple-800"
-                                                :title="`Total shift ${item.shift_tracking.group_total}m, lebih ${item.shift_tracking.diff}m (overtime/kelebihan)`"
+                                                :title="`Total shift ${item.shift_tracking?.group_total ?? 0}m, lebih ${item.shift_tracking?.diff ?? 0}m (overtime/kelebihan)`"
                                             >
-                                                ⚠️ Lebih (+{{ item.shift_tracking.diff }}m)
+                                                ⚠️ Lebih (+{{ item.shift_tracking?.diff ?? 0 }}m)
                                             </span>
                                             <span class="text-3xs text-purple-600 dark:text-purple-400 font-mono">
-                                                {{ item.shift_tracking.group_total }}/390m
+                                                {{ item.shift_tracking?.group_total ?? 0 }}/390m
                                             </span>
                                         </template>
                                     </div>
@@ -876,20 +891,20 @@ function printTable() {
 
                                 <!-- Actual Output -->
                                 <td class="py-3 px-3 text-right font-mono font-bold text-indigo-700 dark:text-indigo-400 tabular-nums whitespace-nowrap text-sm">
-                                    {{ Number(item.actual_output).toLocaleString('id-ID') }}
+                                    {{ Number(item.actual_output || 0).toLocaleString('id-ID') }}
                                 </td>
 
                                 <!-- Balance -->
                                 <td class="py-3 px-3 text-right font-mono font-bold tabular-nums whitespace-nowrap">
-                                    <span :class="Number(item.balance_target) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'">
-                                        {{ Number(item.balance_target) >= 0 ? '+' : '' }}{{ Number(item.balance_target).toLocaleString('id-ID') }}
+                                    <span :class="Number(item.balance_target || 0) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'">
+                                        {{ Number(item.balance_target || 0) >= 0 ? '+' : '' }}{{ Number(item.balance_target || 0).toLocaleString('id-ID') }}
                                     </span>
                                 </td>
 
                                 <!-- OEE -->
                                 <td class="py-3 px-3 text-right font-mono font-bold tabular-nums whitespace-nowrap">
                                     <span :class="[
-                                        Number(item.oee_score) >= 0.85 ? 'text-emerald-600 dark:text-emerald-400' : (Number(item.oee_score) >= 0.70 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400')
+                                        Number(item.oee_score || 0) >= 0.85 ? 'text-emerald-600 dark:text-emerald-400' : (Number(item.oee_score || 0) >= 0.70 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400')
                                     ]">
                                         {{ (Number(item.oee_score || 0) * 100).toFixed(1) }}%
                                     </span>
@@ -915,27 +930,27 @@ function printTable() {
 
                                 <!-- Status Badge -->
                                 <td class="py-3 px-3 text-center whitespace-nowrap">
-                                    <BadgeStatus :status="item.batch_status" />
+                                    <BadgeStatus :status="item.batch_status || 'OPEN'" />
                                 </td>
 
                                 <!-- Aksi (Detail, Edit Laporan, Cetak BSTB) -->
                                 <td class="py-3 px-3 text-center whitespace-nowrap space-x-1">
                                     <Link
-                                        :href="`/reports/${item.report_id}/edit?item_id=${item.id}`"
+                                        :href="`/reports/${item.report_id || item.report?.id}/edit?item_id=${item.id}`"
                                         class="text-amber-600 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 font-bold px-2 py-1 rounded hover:bg-amber-50 dark:hover:bg-slate-800 transition"
                                         title="Edit Laporan Produksi & Downtime"
                                     >
                                         Edit ✏️
                                     </Link>
                                     <Link
-                                        :href="`/reports/${item.report_id}`"
+                                        :href="`/reports/${item.report_id || item.report?.id}`"
                                         class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-200 font-bold px-2 py-1 rounded hover:bg-indigo-50 dark:hover:bg-slate-800 transition"
                                     >
                                         Detail
                                     </Link>
                                     <Link
                                         v-if="$page.props.auth?.user?.can_print_bstb"
-                                        :href="`/reports/${item.report_id}/bstb`"
+                                        :href="`/reports/${item.report_id || item.report?.id}/bstb`"
                                         class="text-emerald-600 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-200 font-semibold px-2 py-1 rounded hover:bg-emerald-50 dark:hover:bg-slate-800 transition font-mono text-2xs"
                                         title="Cetak Bukti Serah Terima Barang (BSTB)"
                                     >
