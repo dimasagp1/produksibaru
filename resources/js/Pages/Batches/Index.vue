@@ -19,8 +19,24 @@ const filterForm = reactive({
     product_id: props.filters?.product_id || '',
 });
 
+function formatPaginationUrl(rawUrl) {
+    if (!rawUrl) return null;
+    try {
+        const parsed = new URL(rawUrl, window.location.origin);
+        return parsed.pathname + parsed.search;
+    } catch {
+        return rawUrl;
+    }
+}
+
 function applyFilter() {
-    router.get('/batches', filterForm, {
+    const cleanParams = {};
+    for (const [key, value] of Object.entries(filterForm)) {
+        if (value !== '' && value !== null && value !== undefined) {
+            cleanParams[key] = value;
+        }
+    }
+    router.get('/batches', cleanParams, {
         preserveState: true,
         preserveScroll: true,
     });
@@ -223,17 +239,24 @@ function filterStatus(status) {
                     </span>
 
                     <div class="flex items-center gap-1">
-                        <Link
-                            v-for="(link, idx) in batches.links"
-                            :key="idx"
-                            :href="link.url || '#'"
-                            :class="[
-                                'px-2.5 py-1 rounded font-mono font-semibold transition',
-                                link.active ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700',
-                                !link.url ? 'opacity-40 pointer-events-none' : ''
-                            ]"
-                            v-html="link.label"
-                        />
+                        <template v-for="(link, idx) in batches.links" :key="idx">
+                            <Link
+                                v-if="link.url"
+                                :href="formatPaginationUrl(link.url)"
+                                preserve-scroll
+                                preserve-state
+                                :class="[
+                                    'px-2.5 py-1 rounded font-mono font-semibold transition cursor-pointer',
+                                    link.active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                ]"
+                                v-html="link.label"
+                            />
+                            <span
+                                v-else
+                                class="px-2.5 py-1 rounded font-mono font-semibold opacity-40 pointer-events-none bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700"
+                                v-html="link.label"
+                            />
+                        </template>
                     </div>
                 </div>
             </div>

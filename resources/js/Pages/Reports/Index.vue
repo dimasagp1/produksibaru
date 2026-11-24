@@ -127,8 +127,24 @@ function printCurrentShiftBstb() {
     router.visit(`/reports/bstb-shift?${params.toString()}`);
 }
 
+function formatPaginationUrl(rawUrl) {
+    if (!rawUrl) return null;
+    try {
+        const parsed = new URL(rawUrl, window.location.origin);
+        return parsed.pathname + parsed.search;
+    } catch {
+        return rawUrl;
+    }
+}
+
 function applyFilter() {
-    router.get('/reports', formFilter, {
+    const cleanParams = {};
+    for (const [key, value] of Object.entries(formFilter)) {
+        if (value !== '' && value !== null && value !== undefined) {
+            cleanParams[key] = value;
+        }
+    }
+    router.get('/reports', cleanParams, {
         preserveState: true,
         preserveScroll: true,
     });
@@ -949,7 +965,7 @@ function printTable() {
                     <template v-for="(link, idx) in (items?.links || [])" :key="idx">
                         <Link
                             v-if="link.url"
-                            :href="link.url"
+                            :href="formatPaginationUrl(link.url)"
                             preserve-scroll
                             preserve-state
                             :class="[

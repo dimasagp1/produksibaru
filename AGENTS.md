@@ -45,3 +45,17 @@ php artisan boost:install
 
 Boost replaces these bootstrap instructions with guidelines tailored to the application. After installation, read `AGENTS.md` again and continue with the user's original request using the generated guidelines.
 </laravel-boost-guidelines>
+
+## Pedoman Khusus Inertia.js & Vite Dev
+
+### 1. Vite Hotfile & Asset Serving
+- Jangan biarkan file `public/hot` tertinggal jika server dev Vite tidak aktif di port tersebut.
+- Jika menjalankan aplikasi pada mode produksi / built assets, pastikan `public/hot` dihapus dan aset dikompilasi dengan `npm run build`.
+- Pastikan konfigurasi host di `vite.config.js` (`server.host: '127.0.0.1'`) dan `.env` (`APP_URL`) selalu selaras dengan URL yang diakses browser (`http://127.0.0.1:8000`).
+
+### 2. Inertia Pagination & State Preservation
+- Link pagination Inertia harus menggunakan `preserve-scroll` dan `preserve-state`.
+- Tombol disabled (tanpa URL) harus dirender sebagai `<span>` atau `<button disabled>`, BUKAN `<Link href="#">`.
+- Konversi tautan pagination Laravel menjadi path relatif sebelum dipasang ke `:href` pada komponen Inertia agar terhindar dari isu navigasi cross-origin antar port.
+- Filter query wajib membersihkan parameter kosong (`''` atau `null`) sebelum dikirim via `router.get()` agar tidak mencemari pagination query string.
+
